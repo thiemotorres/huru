@@ -36,3 +36,7 @@ Wordmark set in **Figtree ExtraBold** (SIL Open Font License 1.1), converted to 
 - **Minimum sizes:** icon with gull from 96 px, below that `icon-small.svg`; wordmark from 24 px height.
 - **Backgrounds:** lockup on cream/white, `lockup-reversed.svg` on plum/night. The tile works on both.
 - **Don't:** swap colours, move or rescale elements, add shadows or gradients, set the wordmark in another typeface, or use the gull alone as the logo.
+
+## Name and logo
+
+The name **Huru**, the logo and all files in `branding/` are © Thiemo Ferreira Torres, all rights reserved. They are **not** covered by the code license in [`LICENSE.md`](../LICENSE.md). You may use them to refer to this project (e.g. in an article or a link), but not to name or brand a fork, a modified build or another product.

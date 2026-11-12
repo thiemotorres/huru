@@ -30,3 +30,9 @@ Kotlin, Jetpack Compose for TV, Media3 ExoPlayer, Coil. No other dependencies, n
 ## Brand
 
 Logo, colours and usage rules: [`branding/BRAND.md`](branding/BRAND.md). Typeface in the logo: Figtree (SIL OFL 1.1).
+
+## License
+
+Huru is **source-available** under the [PolyForm Noncommercial License 1.0.0](LICENSE.md): you may use, study, modify and share it for any **noncommercial** purpose. Commercial use – including selling it, bundling it with a paid service or shipping it with ads – is not permitted. For commercial licensing, open an issue.
+
+The name **Huru** and the Huru logo are not covered by this license; see [`branding/BRAND.md`](branding/BRAND.md#name-and-logo). Forks must use a different name and logo.

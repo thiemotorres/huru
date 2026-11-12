@@ -49,6 +49,13 @@ adb install -r app/build/outputs/apk/release/app-release.apk
 
 Brand assets and rules live in `branding/` (see `branding/BRAND.md`). Colours in code come from `Splash.kt`.
 
+## License
+
+- Code: **PolyForm Noncommercial 1.0.0** (`LICENSE.md`) – *source-available*, not OSI open source. Never describe the project as "open source".
+- Name and logo are excluded from the license (see `branding/BRAND.md`).
+- Keep the `Required Notice:` line at the top of `LICENSE.md`.
+- Outside contributions need the contributor's agreement that the maintainer may also license them commercially – ask before merging any.
+
 ## Git
 
 - Commit author email: the GitHub noreply address (set in the local git config) – never a work address.
