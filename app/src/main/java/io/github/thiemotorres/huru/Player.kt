@@ -23,7 +23,13 @@ import androidx.compose.ui.viewinterop.AndroidView
 import android.view.TextureView
 import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.Canvas
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.media3.common.VideoSize
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.text.style.TextAlign
@@ -164,7 +170,7 @@ fun Player(
             .focusRequester(focus)
             .focusable(),
     ) {
-        VideoSurface(player)
+        VideoSurface(player) { onExit(index) }
         AnimatedVisibility(
             visible = overlay || paused || error != null,
             enter = fadeIn(), exit = fadeOut(),
@@ -218,23 +224,68 @@ private fun trackPrefs(context: android.content.Context) = context.getSharedPref
 fun describe(e: PlaybackException): String =
     (e.cause as? HttpDataSource.InvalidResponseCodeException)?.let { "HTTP ${it.responseCode}" } ?: e.errorCodeName
 
+/** Picture mode and sleep timer, shared by both players (menu sets them, the surface applies them). */
+object Viewing {
+    /** "fit", "fill" (zoom, crops) or "stretch"; null until read from the preferences. */
+    var picture by mutableStateOf<String?>(null)
+    /** Sleep timer: when playback stops (epoch ms) and the chosen minutes; not remembered across app starts. */
+    var sleepAt by mutableStateOf<Long?>(null)
+    var sleepMinutes by mutableIntStateOf(0)
+}
+
+/** Scale of a video with aspect [video] stretched over a screen with aspect [screen], per picture mode: (x, y). */
+fun pictureScale(mode: String, video: Float, screen: Float): Pair<Float, Float> {
+    if (!(video > 0f && screen > 0f) || mode == "stretch") return 1f to 1f // also catches NaN
+    val k = video / screen // > 1: video is wider than the screen
+    return if ((mode == "fit") == (k > 1)) 1f to 1f / k else k to 1f
+}
+
+/** Video with subtitles, picture mode and sleep timer; [onSleep] leaves the player when the timer runs out. */
 @Composable
-fun VideoSurface(player: ExoPlayer) {
+fun VideoSurface(player: ExoPlayer, onSleep: () -> Unit) {
     // Subtitles are drawn by hand: the TextureView has no subtitle layer.
     var cues by remember { mutableStateOf("") }
+    var aspect by remember { mutableFloatStateOf(0f) }
     DisposableEffect(player) {
         val listener = object : MediaPlayer.Listener {
             override fun onCues(group: CueGroup) { cues = group.cues.mapNotNull { it.text }.joinToString("\n") }
+            override fun onVideoSizeChanged(v: VideoSize) {
+                aspect = if (v.height > 0) v.width * v.pixelWidthHeightRatio / v.height else 0f
+            }
         }
         player.addListener(listener)
         onDispose { player.removeListener(listener) }
     }
-    Box(Modifier.fillMaxSize()) {
+    val prefs = trackPrefs(LocalContext.current)
+    val picture = Viewing.picture ?: prefs.getString("picture", "fit")!!.also { Viewing.picture = it }
+    val sleep by rememberUpdatedState(onSleep)
+    LaunchedEffect(Viewing.sleepAt) {
+        val at = Viewing.sleepAt ?: return@LaunchedEffect
+        delay(at - System.currentTimeMillis())
+        Viewing.sleepAt = null
+        sleep()
+    }
+    // The texture is stretched over the view, so the view itself gets the size of the picture mode;
+    // larger than the screen for fill (cropped). Transforms (graphicsLayer, setTransform) have no effect on Fire OS.
+    BoxWithConstraints(Modifier.fillMaxSize().clipToBounds(), contentAlignment = Alignment.Center) {
+        val (x, y) = pictureScale(picture, aspect, maxWidth / maxHeight)
         AndroidView(
             // TextureView instead of PlayerView/SurfaceView: the SurfaceView ends up behind the Compose layer (audio, no picture).
             factory = { TextureView(it).apply { isFocusable = false; keepScreenOn = true; player.setVideoTextureView(this) } },
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier.requiredSize(maxWidth * x, maxHeight * y),
         )
+        // Fire OS fills the area below a shrunken TextureView with empty video memory (green): paint the bars black.
+        if (x < 1f || y < 1f) Canvas(Modifier.fillMaxSize()) {
+            val bar = Size(size.width * (1 - x) / 2, size.height * (1 - y) / 2)
+            if (bar.height > 0) {
+                drawRect(Color.Black, size = Size(size.width, bar.height))
+                drawRect(Color.Black, Offset(0f, size.height - bar.height), Size(size.width, bar.height))
+            }
+            if (bar.width > 0) {
+                drawRect(Color.Black, size = Size(bar.width, size.height))
+                drawRect(Color.Black, Offset(size.width - bar.width, 0f), Size(bar.width, size.height))
+            }
+        }
         if (cues.isNotBlank()) Text(
             cues,
             Modifier.align(Alignment.BottomCenter).padding(bottom = 56.dp, start = 96.dp, end = 96.dp)
@@ -289,6 +340,9 @@ fun TrackMenu(player: ExoPlayer, onClose: () -> Unit, modifier: Modifier = Modif
         trailingContent = if (selected) { { Text("✓") } } else null,
     )
 
+    @Composable
+    fun Heading(text: String) = Text(text, style = MaterialTheme.typography.titleLarge, color = Color.White, modifier = Modifier.padding(top = 16.dp))
+
     LazyColumn(
         modifier
             .fillMaxHeight().width(420.dp)
@@ -304,7 +358,7 @@ fun TrackMenu(player: ExoPlayer, onClose: () -> Unit, modifier: Modifier = Modif
         itemsIndexed(audio) { n, (g, i) ->
             Option(audioLabels[n], g.isTrackSelected(i), { select(g, i, C.TRACK_TYPE_AUDIO) }, if (n == 0) Modifier.focusRequester(first) else Modifier)
         }
-        item { Text(stringResource(R.string.subtitles), style = MaterialTheme.typography.titleLarge, color = Color.White, modifier = Modifier.padding(top = 16.dp)) }
+        item { Heading(stringResource(R.string.subtitles)) }
         item {
             Option(
                 stringResource(R.string.subtitles_off), text.none { (g, i) -> g.isTrackSelected(i) }, { select(null, 0, C.TRACK_TYPE_TEXT) },
@@ -312,6 +366,27 @@ fun TrackMenu(player: ExoPlayer, onClose: () -> Unit, modifier: Modifier = Modif
             )
         }
         itemsIndexed(text) { n, (g, i) -> Option(textLabels[n], g.isTrackSelected(i), { select(g, i, C.TRACK_TYPE_TEXT) }) }
+        item { Heading(stringResource(R.string.picture)) }
+        items(listOf("fit" to R.string.picture_fit, "fill" to R.string.picture_fill, "stretch" to R.string.picture_stretch)) { (mode, label) ->
+            Option(stringResource(label), Viewing.picture == mode, {
+                Viewing.picture = mode
+                prefs.edit().putString("picture", mode).apply()
+            })
+        }
+        item {
+            val left = Viewing.sleepAt?.let { ((it - System.currentTimeMillis()) / 60_000 + 1).toInt() }
+            Heading(stringResource(R.string.sleep) + (left?.let { " · " + stringResource(R.string.sleep_left, it) } ?: ""))
+        }
+        items(listOf(0, 30, 60, 90)) { minutes ->
+            Option(
+                if (minutes == 0) stringResource(R.string.subtitles_off) else stringResource(R.string.minutes, minutes),
+                (Viewing.sleepAt == null && minutes == 0) || (Viewing.sleepAt != null && Viewing.sleepMinutes == minutes),
+                {
+                    Viewing.sleepMinutes = minutes
+                    Viewing.sleepAt = if (minutes == 0) null else System.currentTimeMillis() + minutes * 60_000L
+                },
+            )
+        }
     }
 }
 

@@ -523,7 +523,7 @@ fun VodPlayer(playback: Playback, store: ProgressStore?, onEnded: () -> Unit, on
             .focusRequester(focus)
             .focusable(),
     ) {
-        VideoSurface(player)
+        VideoSurface(player, onExit)
         if (buffering && error == null) {
             Text(stringResource(R.string.loading), Modifier.align(Alignment.Center), color = Color.White.copy(alpha = 0.7f))
         }

@@ -63,8 +63,15 @@
     <string name="audio">Audio</string>
     <string name="subtitles">Subtitles</string>
     <string name="subtitles_off">Off</string>
+    <string name="picture">Picture</string>
+    <string name="picture_fit">Fit</string>
+    <string name="picture_fill">Zoom</string>
+    <string name="picture_stretch">Stretch</string>
+    <string name="sleep">Sleep timer</string>
+    <string name="sleep_left">%1$d min left</string>
+    <string name="minutes">%1$d min</string>
     <string name="track_n">Track %1$d</string>
-    <string name="tracks_hint">≡ Audio &amp; subtitles</string>
+    <string name="tracks_hint">≡ Audio, subtitles, picture</string>
     <string name="track_forced">forced</string>
     <string name="pin_enter">Enter PIN</string>
     <string name="pin_new">Choose a new PIN</string>
