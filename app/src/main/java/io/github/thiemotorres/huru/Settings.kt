@@ -93,6 +93,19 @@ fun SettingsScreen(
                             }
                         }
                     }
+                    item {
+                        val prefs = displayPrefs(context)
+                        var flags by remember { mutableStateOf(prefs.getBoolean("flags", false)) }
+                        Column(Modifier.padding(top = 32.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text(stringResource(R.string.display_title), style = MaterialTheme.typography.titleLarge)
+                            ListItem(
+                                selected = false,
+                                onClick = { flags = !flags; prefs.edit().putBoolean("flags", flags).apply() },
+                                headlineContent = { Text(stringResource(R.string.display_flags)) },
+                                trailingContent = { Switch(checked = flags, onCheckedChange = null) },
+                            )
+                        }
+                    }
                 }
             }
             AboutPanel(Modifier.width(380.dp))

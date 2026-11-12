@@ -79,4 +79,6 @@
     <string name="pin_set">PIN festlegen</string>
     <string name="pin_change">PIN ändern</string>
     <string name="pin_remove">PIN entfernen</string>
+    <string name="display_title">Anzeige</string>
+    <string name="display_flags">Länderflaggen statt Kürzel</string>
 </resources>

@@ -18,6 +18,13 @@ class NamesTest {
         assertEquals("PT" to "Desporto", Category("1", "PT | Desporto").let { it.prefix to it.label })
         assertEquals("BR" to "Canais Abertos", Category("1", "BR: Canais Abertos").let { it.prefix to it.label })
         assertEquals(null to "Portugal (SD)", Category("1", "Portugal (SD)").let { it.prefix to it.label })
+        assertEquals("DE" to "MAGENTA TV", Category("1", "DE MAGENTA TV").let { it.prefix to it.label })
+        assertEquals("UK" to "News", Category("1", "UK News").let { it.prefix to it.label })
+        assertEquals(null to "TV TOTAL", Category("1", "TV TOTAL").let { it.prefix to it.label })
+        assertEquals(null to "THE BEST", Category("1", "THE BEST").let { it.prefix to it.label })
+        assertEquals("\uD83C\uDDE9\uD83C\uDDEA", flagOf("DE"))
+        assertEquals("\uD83C\uDDEC\uD83C\uDDE7", flagOf("UK"))
+        assertEquals(null, flagOf("EXYU"))
     }
 }
 

@@ -15,7 +15,8 @@ import java.net.URL
 data class Account(val server: String, val user: String, val pass: String, val id: String = "", val name: String = "")
 data class Category(val id: String, val name: String) {
     private val match = COUNTRY_PREFIX.matchEntire(name)
-    /** Country prefix from "PT | Desporto" → "PT". */
+        ?: SPACED_PREFIX.matchEntire(name)?.takeIf { it.groupValues[1] in COUNTRY_CODES }
+    /** Country prefix from "PT | Desporto", "BR: Abertos" or "DE MAGENTA TV" (known codes only) → "PT". */
     val prefix: String? = match?.groupValues?.get(1)
     val label: String = match?.groupValues?.get(2) ?: name
 }
@@ -27,6 +28,16 @@ data class Channel(val id: Int, val num: Int, val name: String, val logo: String
 }
 
 private val COUNTRY_PREFIX = Regex("""^\s*([A-Z]{2,3})\s*[|:]\s*(.+?)\s*$""")
+private val SPACED_PREFIX = Regex("""^\s*([A-Z]{2})\s+(.+?)\s*$""")
+// Without a separator only real country codes count ("THE BEST" stays whole); TV (Tuvalu) is too ambiguous.
+private val COUNTRY_CODES = java.util.Locale.getISOCountries().toSet() + setOf("UK", "EN") - "TV"
+
+/** Prefix → flag emoji ("DE" → 🇩🇪, UK/EN → 🇬🇧); null for codes that are no country ("EXYU"). */
+fun flagOf(code: String): String? {
+    val country = when (code) { "UK", "EN" -> "GB"; else -> code }
+    if (country.length != 2 || country !in COUNTRY_CODES) return null
+    return country.map { String(Character.toChars(0x1F1E6 + (it - 'A'))) }.joinToString("")
+}
 private val QUALITY_SUFFIX = Regex("""\s+[\[(]?(UHD|4K|FHD|HD|SD|LOW|HEVC)[\])]?\s*$""", RegexOption.IGNORE_CASE)
 data class Programme(val title: String, val start: Long, val end: Long)
 

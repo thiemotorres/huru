@@ -16,7 +16,10 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.unit.sp
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
@@ -280,6 +283,7 @@ fun CategoryItem(
     onClick: () -> Unit = {},
     onLongClick: (() -> Unit)? = null,
 ) {
+    val flags = displayPrefs(LocalContext.current).getBoolean("flags", false)
     ListItem(
         selected = selected,
         onClick = onClick,
@@ -291,13 +295,24 @@ fun CategoryItem(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 if (locked) Text("🔒")
-                cat.prefix?.let { Badge(it) }
+                cat.prefix?.let { code -> flagOf(code)?.takeIf { flags }?.let { Flag(it) } ?: Badge(code) }
                 Text(cat.label, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         },
         modifier = modifier,
     )
 }
+
+/** Round country flag: the emoji, cropped to a circle. */
+@Composable
+private fun Flag(emoji: String) {
+    Box(Modifier.size(24.dp).clip(CircleShape), contentAlignment = Alignment.Center) {
+        Text(emoji, Modifier.wrapContentSize(unbounded = true), fontSize = 30.sp)
+    }
+}
+
+/** Device-wide display options (Settings). */
+fun displayPrefs(context: Context) = context.getSharedPreferences("display", Context.MODE_PRIVATE)
 
 @Composable
 internal fun Poster(title: String, poster: String?, modifier: Modifier, progress: Float? = null, onClick: () -> Unit) {

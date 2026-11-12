@@ -80,4 +80,6 @@
     <string name="pin_set">Set PIN</string>
     <string name="pin_change">Change PIN</string>
     <string name="pin_remove">Remove PIN</string>
+    <string name="display_title">Display</string>
+    <string name="display_flags">Country flags instead of codes</string>
 </resources>
