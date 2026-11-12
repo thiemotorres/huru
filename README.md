@@ -2,7 +2,9 @@
 
 **Huru** is a clean, ad-free IPTV player for Amazon Fire TV (Android TV). It plays **your own** Xtream Codes subscription – no ads, no tracking, no clutter. *Huru* means "free" in Swahili.
 
-<p align="center"><a href="docs/huru-launch.mp4"><img src="docs/huru-launch.jpg" alt="Watch the 20-second launch video" width="720"></a><br><sub>▶ Watch the 20-second launch video</sub></p>
+https://github.com/user-attachments/assets/ce6b96bf-3270-40b1-a0a2-a3e2cd4b5fda
+
+
 
 <p align="center"><img src="docs/screenshots/live-guide.png" alt="Programme guide" width="49%"> <img src="docs/screenshots/movies.png" alt="Movies" width="49%"></p>
 <p align="center"><img src="docs/screenshots/player.png" alt="Player" width="49%"> <img src="docs/screenshots/series-detail.png" alt="Series" width="49%"></p>
