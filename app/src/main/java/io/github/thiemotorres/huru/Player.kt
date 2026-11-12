@@ -51,6 +51,7 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -75,9 +76,8 @@ fun Player(
     val channels = remember { channels }
     var index by remember { mutableIntStateOf(start) }
     var error by remember { mutableStateOf<String?>(null) }
-    var attempts by remember { mutableIntStateOf(0) }
-    var reconnect by remember { mutableStateOf<Job?>(null) }
     val scope = rememberCoroutineScope()
+    val reconnect = remember { Reconnect(scope) }
     var typed by remember { mutableStateOf("") } // channel number being entered
     var epg by remember { mutableStateOf<List<Programme>>(emptyList()) }
     var overlayTick by remember { mutableIntStateOf(0) }
@@ -104,20 +104,18 @@ fun Player(
                     when {
                         // Some servers only deliver HLS: retry once as .m3u8, then stay on HLS.
                         x.liveExt == "ts" -> { x.liveExt = "m3u8"; play(this@apply) }
-                        // Live streams drop now and then: reconnect quietly (1, 2, 4 s) before showing the error.
-                        attempts < 3 -> reconnect = scope.launch { delay(1_000L shl attempts++); play(this@apply) }
+                        reconnect.retry { play(this@apply) } -> Unit
                         else -> error = describe(e)
                     }
                 }
-                // ponytail: a stream that plays briefly and drops again reconnects forever; cap per minute if that annoys.
-                override fun onPlaybackStateChanged(state: Int) { if (state == MediaPlayer.STATE_READY) attempts = 0 }
+                override fun onPlaybackStateChanged(state: Int) { if (state == MediaPlayer.STATE_READY) reconnect.reset() }
             })
         }
     }
     DisposableEffect(Unit) { onDispose { player.release() } }
 
     LaunchedEffect(channel) {
-        reconnect?.cancel(); attempts = 0
+        reconnect.reset()
         paused = false // zapping always plays the new channel
         player.playWhenReady = true
         play(player)
@@ -153,7 +151,7 @@ fun Player(
                     Key.Menu -> { menu = true; true }
                     Key.DirectionUp, Key.ChannelUp -> { index = (index - 1 + channels.size) % channels.size; true }
                     Key.DirectionDown, Key.ChannelDown -> { index = (index + 1) % channels.size; true }
-                    Key.DirectionCenter, Key.Enter -> { if (error != null) { attempts = 0; play(player) }; overlayTick++; true }
+                    Key.DirectionCenter, Key.Enter -> { if (error != null) { reconnect.reset(); play(player) }; overlayTick++; true }
                     // Remote Play/Pause (required for Fire TV media apps); resuming jumps back to the live edge.
                     Key.MediaPlayPause, Key.MediaPlay, Key.MediaPause -> {
                         paused = !paused
@@ -192,6 +190,26 @@ private fun digit(e: KeyEvent): Char? = when (val code = e.nativeKeyEvent.keyCod
     in android.view.KeyEvent.KEYCODE_0..android.view.KeyEvent.KEYCODE_9 -> '0' + (code - android.view.KeyEvent.KEYCODE_0)
     in android.view.KeyEvent.KEYCODE_NUMPAD_0..android.view.KeyEvent.KEYCODE_NUMPAD_9 -> '0' + (code - android.view.KeyEvent.KEYCODE_NUMPAD_0)
     else -> null
+}
+
+/**
+ * Streams drop now and then: retry quietly after 1, 2 and 4 s before the player shows the error.
+ * ponytail: a stream that plays briefly and drops again retries forever; cap per minute if that annoys.
+ */
+class Reconnect(private val scope: CoroutineScope) {
+    private var attempts = 0
+    private var job: Job? = null
+
+    /** Schedules [action]; false once the retries are used up. */
+    fun retry(action: () -> Unit): Boolean {
+        if (attempts >= 3) return false
+        val wait = 1_000L shl attempts++ // counted now, not when the coroutine starts
+        job = scope.launch { delay(wait); action() }
+        return true
+    }
+
+    /** Playback works again, or a new stream starts: full retries, nothing pending. */
+    fun reset() { attempts = 0; job?.cancel() }
 }
 
 /** ExoPlayer that also follows http→https redirects (movies/episodes often live on a CDN). */

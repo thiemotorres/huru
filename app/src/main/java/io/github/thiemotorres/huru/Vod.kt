@@ -460,6 +460,8 @@ fun VodPlayer(playback: Playback, store: ProgressStore?, onEnded: () -> Unit, on
     var overlay by remember { mutableStateOf(true) }
     var menu by remember { mutableStateOf(false) }
 
+    val scope = rememberCoroutineScope()
+    val reconnect = remember { Reconnect(scope) }
     lateinit var player: ExoPlayer
     fun save() = store?.save(playback, player.currentPosition, player.duration)
     player = remember {
@@ -469,9 +471,11 @@ fun VodPlayer(playback: Playback, store: ProgressStore?, onEnded: () -> Unit, on
             prepare()
             playWhenReady = true
             addListener(object : MediaPlayer.Listener {
-                override fun onPlayerError(e: PlaybackException) { error = describe(e) }
+                // prepare() after an error continues at the current position.
+                override fun onPlayerError(e: PlaybackException) { if (!reconnect.retry { prepare() }) error = describe(e) }
                 override fun onPlaybackStateChanged(state: Int) {
                     buffering = state == MediaPlayer.STATE_BUFFERING
+                    if (state == MediaPlayer.STATE_READY) reconnect.reset()
                     if (state == MediaPlayer.STATE_ENDED) { save(); onEnded() }
                 }
             })
@@ -508,7 +512,7 @@ fun VodPlayer(playback: Playback, store: ProgressStore?, onEnded: () -> Unit, on
                 when (e.key) {
                     Key.Menu -> { menu = true; true }
                     Key.DirectionCenter, Key.Enter, Key.MediaPlayPause, Key.MediaPlay, Key.MediaPause -> {
-                        if (error != null) { error = null; player.prepare() }
+                        if (error != null) { error = null; reconnect.reset(); player.prepare() }
                         player.playWhenReady = !player.playWhenReady
                         paused = !player.playWhenReady
                         overlayTick++
