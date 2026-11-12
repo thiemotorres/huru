@@ -22,7 +22,11 @@ import android.view.TextureView
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player as MediaPlayer
+import androidx.media3.datasource.DefaultDataSource
+import androidx.media3.datasource.DefaultHttpDataSource
+import androidx.media3.datasource.HttpDataSource
 import androidx.media3.exoplayer.DefaultLoadControl
+import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
@@ -50,10 +54,10 @@ fun Player(x: Xtream, channels: List<Channel>, start: Int, onChannel: (Channel) 
         val loadControl = DefaultLoadControl.Builder()
             .setBufferDurationsMs(15_000, 50_000, 1_000, 2_000)
             .build()
-        ExoPlayer.Builder(context).setLoadControl(loadControl).build().apply {
+        newPlayer(context).setLoadControl(loadControl).build().apply {
             playWhenReady = true
             addListener(object : MediaPlayer.Listener {
-                override fun onPlayerError(e: PlaybackException) { error = e.errorCodeName }
+                override fun onPlayerError(e: PlaybackException) { error = describe(e) }
             })
         }
     }
@@ -95,11 +99,7 @@ fun Player(x: Xtream, channels: List<Channel>, start: Int, onChannel: (Channel) 
             .focusRequester(focus)
             .focusable(),
     ) {
-        AndroidView(
-            // TextureView statt PlayerView/SurfaceView: die SurfaceView landet unter der Compose-Fläche (Ton, kein Bild).
-            factory = { TextureView(it).apply { isFocusable = false; keepScreenOn = true; player.setVideoTextureView(this) } },
-            modifier = Modifier.fillMaxSize(),
-        )
+        VideoSurface(player)
         AnimatedVisibility(
             visible = overlay || error != null,
             enter = fadeIn(), exit = fadeOut(),
@@ -108,6 +108,27 @@ fun Player(x: Xtream, channels: List<Channel>, start: Int, onChannel: (Channel) 
             InfoBar(channel, epg, error)
         }
     }
+}
+
+/** ExoPlayer, der auch http→https-Weiterleitungen folgt (Filme/Folgen liegen oft auf einem CDN). */
+@androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
+fun newPlayer(context: android.content.Context): ExoPlayer.Builder {
+    val http = DefaultHttpDataSource.Factory().setAllowCrossProtocolRedirects(true)
+    return ExoPlayer.Builder(context)
+        .setMediaSourceFactory(DefaultMediaSourceFactory(DefaultDataSource.Factory(context, http)))
+}
+
+/** Lesbarer Fehler: HTTP-Status, falls der Server einen geliefert hat. */
+fun describe(e: PlaybackException): String =
+    (e.cause as? HttpDataSource.InvalidResponseCodeException)?.let { "HTTP ${it.responseCode}" } ?: e.errorCodeName
+
+@Composable
+fun VideoSurface(player: ExoPlayer) {
+    AndroidView(
+        // TextureView statt PlayerView/SurfaceView: die SurfaceView landet unter der Compose-Fläche (Ton, kein Bild).
+        factory = { TextureView(it).apply { isFocusable = false; keepScreenOn = true; player.setVideoTextureView(this) } },
+        modifier = Modifier.fillMaxSize(),
+    )
 }
 
 val hhmm = SimpleDateFormat("HH:mm", Locale.GERMANY)

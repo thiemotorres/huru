@@ -69,10 +69,44 @@ private fun SharedPreferences.save(a: Account?) = edit().apply {
 @Composable
 fun App(prefs: SharedPreferences) {
     var xtream by remember { mutableStateOf(prefs.account()?.let(::Xtream)) }
+    var mode by remember { mutableIntStateOf(0) } // 0 TV, 1 Filme, 2 Serien
+    var switched by remember { mutableStateOf(false) } // nach einem Wechsel Fokus auf den Umschalter statt Liste
+    var autoplay by remember { mutableStateOf(true) } // letzten Sender nur beim App-Start automatisch abspielen
+    val header = @Composable { ModeSwitch(mode, onMode = { mode = it; switched = true }, focus = switched) }
     when (val x = xtream) {
         null -> LoginScreen { prefs.save(it.account); xtream = it }
-        else -> BrowseScreen(x, onLogout = { prefs.save(null); xtream = null })
+        else -> when (mode) {
+            0 -> BrowseScreen(
+                x, header, autoFocus = !switched, autoplay = autoplay,
+                onAutoplayed = { autoplay = false },
+                onLogout = { prefs.save(null); xtream = null },
+            )
+            else -> VodScreen(x, series = mode == 2, header, autoFocus = !switched)
+        }
     }
+}
+
+@Composable
+fun ModeSwitch(mode: Int, onMode: (Int) -> Unit, focus: Boolean) {
+    val requester = remember { FocusRequester() }
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        listOf("TV", "Filme", "Serien").forEachIndexed { i, label ->
+            Surface(
+                onClick = { if (i != mode) onMode(i) },
+                modifier = if (i == mode) Modifier.focusRequester(requester) else Modifier,
+                shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(50)),
+                colors = ClickableSurfaceDefaults.colors(
+                    containerColor = if (i == mode) Accent.copy(alpha = 0.25f) else Color.Transparent,
+                    contentColor = Color.White,
+                    focusedContainerColor = Color.White,
+                    focusedContentColor = Color.Black,
+                ),
+            ) {
+                Text(label, Modifier.padding(horizontal = 14.dp, vertical = 6.dp), style = MaterialTheme.typography.labelLarge)
+            }
+        }
+    }
+    LaunchedEffect(Unit) { if (focus) { awaitFrame(); runCatching { requester.requestFocus() } } }
 }
 
 @Composable
@@ -142,7 +176,14 @@ private fun Field(
 }
 
 @Composable
-fun BrowseScreen(x: Xtream, onLogout: () -> Unit) {
+fun BrowseScreen(
+    x: Xtream,
+    header: @Composable () -> Unit,
+    autoFocus: Boolean,
+    autoplay: Boolean,
+    onAutoplayed: () -> Unit,
+    onLogout: () -> Unit,
+) {
     var categories by remember { mutableStateOf<List<Category>?>(null) }
     var all by remember { mutableStateOf<List<Channel>>(emptyList()) }
     var byCategory by remember { mutableStateOf<Map<String, List<Channel>>>(emptyMap()) }
@@ -171,38 +212,30 @@ fun BrowseScreen(x: Xtream, onLogout: () -> Unit) {
         if (cat == FAVORITES) all.filter { it.id.toString() in favorites } else byCategory[cat].orEmpty()
 
     LaunchedEffect(x) {
-        // Listen sofort aus dem Cache zeigen, dann im Hintergrund vom Server erneuern.
-        val cache = File(context.cacheDir, "lists-${x.account.hashCode()}").apply { mkdirs() }
-        val catFile = File(cache, "categories.json")
-        val chanFile = File(cache, "streams.json")
         var started = false
-
-        suspend fun show(catJson: String, chanJson: String) {
-            val (cats, chans) = withContext(Dispatchers.Default) { x.parseCategories(catJson) to x.parseChannels(chanJson) }
-            all = chans
-            byCategory = chans.groupBy { it.categoryId }
-            categories = cats.filter { byCategory[it.id] != null }
-            if (started) return
-            started = true
-            // Direkt mit dem zuletzt gesehenen Sender starten, falls es ihn noch gibt.
-            val lastCategory = lastPrefs.getString("category", null)
-            val last = channelsOf(lastCategory).indexOfFirst { it.id == lastPrefs.getInt("channel", -1) }
-            if (last >= 0) {
-                selected = lastCategory
-                playing = last
-            } else {
+        runCatching {
+            // Erst Cache, dann Server.
+            x.loadLists(context.cacheDir, listOf("get_live_categories", "get_live_streams")) { (catJson, chanJson) ->
+                val (cats, chans) = withContext(Dispatchers.Default) { x.parseCategories(catJson) to x.parseChannels(chanJson) }
+                all = chans
+                byCategory = chans.groupBy { it.categoryId }
+                categories = cats.filter { byCategory[it.id] != null }
+                if (started) return@loadLists
+                started = true
+                if (autoplay) {
+                    onAutoplayed()
+                    // Direkt mit dem zuletzt gesehenen Sender starten, falls es ihn noch gibt.
+                    val lastCategory = lastPrefs.getString("category", null)
+                    val last = channelsOf(lastCategory).indexOfFirst { it.id == lastPrefs.getInt("channel", -1) }
+                    if (last >= 0) {
+                        selected = lastCategory
+                        playing = last
+                        return@loadLists
+                    }
+                }
                 selected = if (favorites.isNotEmpty()) FAVORITES else categories?.firstOrNull()?.id
             }
-        }
-
-        withContext(Dispatchers.IO) { runCatching { catFile.readText() to chanFile.readText() }.getOrNull() }
-            ?.let { (c, s) -> runCatching { show(c, s) } }
-        runCatching { x.raw("get_live_categories") to x.raw("get_live_streams") }
-            .onSuccess { (c, s) ->
-                withContext(Dispatchers.IO) { catFile.writeText(c); chanFile.writeText(s) }
-                show(c, s)
-            }
-            .onFailure { if (!started) error = it.message ?: "Laden fehlgeschlagen" }
+        }.onFailure { if (!started) error = it.message ?: "Laden fehlgeschlagen" }
     }
 
     val loaded = categories
@@ -224,7 +257,7 @@ fun BrowseScreen(x: Xtream, onLogout: () -> Unit) {
     val channelFocus = remember { FocusRequester() }
     val channelList = rememberLazyListState()
 
-    LaunchedEffect(Unit) { awaitFrame(); if (playing == null) runCatching { firstCategory.requestFocus() } }
+    LaunchedEffect(Unit) { awaitFrame(); if (autoFocus && playing == null) runCatching { firstCategory.requestFocus() } }
     LaunchedEffect(returnTo) {
         val i = returnTo ?: return@LaunchedEffect
         channelList.scrollToItem(i)
@@ -234,27 +267,23 @@ fun BrowseScreen(x: Xtream, onLogout: () -> Unit) {
 
     Box(Modifier.fillMaxSize()) {
         Row(Modifier.fillMaxSize().padding(24.dp), horizontalArrangement = Arrangement.spacedBy(24.dp)) {
-            LazyColumn(Modifier.width(260.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                itemsIndexed(cats, key = { _, c -> c.id }) { i, cat ->
-                    val special = cat.id == FAVORITES || cat.id == TOGGLE_HIDDEN
-                    ListItem(
-                        selected = cat.id == selected,
-                        onClick = { if (cat.id == TOGGLE_HIDDEN) showHidden = !showHidden },
-                        onLongClick = { if (!special) toggleHidden(cat) }, // Kategorie aus-/einblenden
-                        headlineContent = {
-                            Row(
-                                Modifier.alpha(if (cat.id in hidden || cat.id == TOGGLE_HIDDEN) 0.45f else 1f),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            ) {
-                                cat.prefix?.let { Badge(it) }
-                                Text(cat.label, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            }
-                        },
-                        modifier = Modifier
-                            .then(if (i == 0) Modifier.focusRequester(firstCategory) else Modifier)
-                            .onFocusChanged { if (it.isFocused && cat.id != TOGGLE_HIDDEN) selected = cat.id },
-                    )
+            Column(Modifier.width(260.dp)) {
+                header()
+                Spacer(Modifier.height(12.dp))
+                LazyColumn(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    itemsIndexed(cats, key = { _, c -> c.id }) { i, cat ->
+                        val special = cat.id == FAVORITES || cat.id == TOGGLE_HIDDEN
+                        CategoryItem(
+                            cat,
+                            selected = cat.id == selected,
+                            dim = cat.id in hidden || cat.id == TOGGLE_HIDDEN,
+                            onClick = { if (cat.id == TOGGLE_HIDDEN) showHidden = !showHidden },
+                            onLongClick = { if (!special) toggleHidden(cat) }, // Kategorie aus-/einblenden
+                            modifier = Modifier
+                                .then(if (i == 0) Modifier.focusRequester(firstCategory) else Modifier)
+                                .onFocusChanged { if (it.isFocused && cat.id != TOGGLE_HIDDEN) selected = cat.id },
+                        )
+                    }
                 }
             }
             val now = rememberNow()
