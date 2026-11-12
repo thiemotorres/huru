@@ -123,12 +123,26 @@ private fun SourceRow(
     onDelete: (Account) -> Unit,
 ) {
     var confirm by remember { mutableStateOf(false) }
+    // Asked fresh each time: renewing an account moves the date. No date if unlimited or unreachable.
+    val expiry by produceState<Long?>(null, source) { value = runCatching { Xtream(source).login() }.getOrNull() }
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         ListItem(
             selected = active,
             onClick = { onActivate(source) },
             headlineContent = { Text(source.name.ifBlank { hostOf(source.server) }, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-            supportingContent = { Text("${hostOf(source.server)} · ${source.user}", maxLines = 1, overflow = TextOverflow.Ellipsis) },
+            supportingContent = {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("${hostOf(source.server)} · ${source.user}", Modifier.weight(1f, fill = false), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    expiry?.let {
+                        val date = java.text.DateFormat.getDateInstance(java.text.DateFormat.MEDIUM).format(java.util.Date(it))
+                        val expired = it < System.currentTimeMillis()
+                        Text(
+                            "· " + stringResource(if (expired) R.string.source_expired else R.string.source_expires, date),
+                            color = if (expired) MaterialTheme.colorScheme.error else Color.Unspecified, maxLines = 1,
+                        )
+                    }
+                }
+            },
             trailingContent = if (active) { { Badge(stringResource(R.string.source_active)) } } else null,
             modifier = Modifier.weight(1f).then(focus),
         )

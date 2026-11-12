@@ -51,6 +51,8 @@
     <string name="cancel">Abbrechen</string>
     <string name="sources_title">Quellen</string>
     <string name="source_active">aktiv</string>
+    <string name="source_expires">gültig bis %1$s</string>
+    <string name="source_expired">abgelaufen am %1$s</string>
     <string name="source_edit">Bearbeiten</string>
     <string name="source_delete">Löschen</string>
     <string name="source_delete_confirm">Wirklich?</string>

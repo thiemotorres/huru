@@ -51,6 +51,10 @@ fun archiveTime(serverStart: String): String? =
 fun upcoming(programmes: List<Programme>, now: Long, limit: Int): List<Programme> =
     programmes.filter { it.end > now }.sortedBy { it.start }.take(limit)
 
+/** user_info.exp_date: unix seconds as string or number; null, "" or "0" means unlimited. */
+fun expiryOf(info: JSONObject): Long? =
+    info.optString("exp_date").toLongOrNull()?.takeIf { it > 0 }?.let { it * 1000 }
+
 /** Movie or series in a list. ext only for movies (stream file extension). */
 data class VodItem(val id: Int, val name: String, val poster: String?, val categoryId: String, val ext: String, val plot: String?)
 data class Episode(val id: String, val season: Int, val num: Int, val title: String, val ext: String, val plot: String?)
@@ -72,9 +76,11 @@ class Xtream(val account: Account) {
         }
     }
 
-    suspend fun login() {
+    /** Checks the login; returns the account's expiry (epoch ms), null if unlimited or not reported. */
+    suspend fun login(): Long? {
         val info = JSONObject(get("")).optJSONObject("user_info")
         if (info?.optInt("auth") != 1) throw IOException("Login failed")
+        return expiryOf(info)
     }
 
     /** Raw JSON of a list action (e.g. get_live_streams) so it can be cached unchanged. */

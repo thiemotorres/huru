@@ -45,7 +45,9 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -67,7 +69,10 @@ fun Player(
     val channels = remember { channels }
     var index by remember { mutableIntStateOf(start) }
     var error by remember { mutableStateOf<String?>(null) }
-    var retry by remember { mutableIntStateOf(0) }
+    var attempts by remember { mutableIntStateOf(0) }
+    var reconnect by remember { mutableStateOf<Job?>(null) }
+    val scope = rememberCoroutineScope()
+    var typed by remember { mutableStateOf("") } // channel number being entered
     var epg by remember { mutableStateOf<List<Programme>>(emptyList()) }
     var overlayTick by remember { mutableIntStateOf(0) }
     var overlay by remember { mutableStateOf(true) }
@@ -75,6 +80,12 @@ fun Player(
     var menu by remember { mutableStateOf(false) }
     val channel = channels[index]
 
+    // Reads index state, not channel: the error listener below is created once and calls this later.
+    fun play(p: ExoPlayer) {
+        error = null
+        p.setMediaItem(MediaItem.fromUri(x.streamUrl(channels[index])))
+        p.prepare()
+    }
     val player = remember {
         // Live TV: start after 1 s of buffer instead of 2.5 s (faster start and zapping).
         val loadControl = DefaultLoadControl.Builder()
@@ -84,25 +95,26 @@ fun Player(
             playWhenReady = true
             addListener(object : MediaPlayer.Listener {
                 override fun onPlayerError(e: PlaybackException) {
-                    // Some servers only deliver HLS: retry once as .m3u8, then stay on HLS.
-                    if (x.liveExt == "ts") { x.liveExt = "m3u8"; retry++ } else error = describe(e)
+                    when {
+                        // Some servers only deliver HLS: retry once as .m3u8, then stay on HLS.
+                        x.liveExt == "ts" -> { x.liveExt = "m3u8"; play(this@apply) }
+                        // Live streams drop now and then: reconnect quietly (1, 2, 4 s) before showing the error.
+                        attempts < 3 -> reconnect = scope.launch { delay(1_000L shl attempts++); play(this@apply) }
+                        else -> error = describe(e)
+                    }
                 }
+                // ponytail: a stream that plays briefly and drops again reconnects forever; cap per minute if that annoys.
+                override fun onPlaybackStateChanged(state: Int) { if (state == MediaPlayer.STATE_READY) attempts = 0 }
             })
         }
     }
     DisposableEffect(Unit) { onDispose { player.release() } }
 
-    fun play() {
-        error = null
-        player.setMediaItem(MediaItem.fromUri(x.streamUrl(channel)))
-        player.prepare()
-    }
-
-    LaunchedEffect(retry) { if (retry > 0) play() }
     LaunchedEffect(channel) {
+        reconnect?.cancel(); attempts = 0
         paused = false // zapping always plays the new channel
         player.playWhenReady = true
-        play()
+        play(player)
         onChannel(channel)
         overlayTick++
         epg = emptyList()
@@ -111,6 +123,14 @@ fun Player(
         onWatched(channel)
     }
     LaunchedEffect(overlayTick) { overlay = true; delay(4_000); overlay = false }
+    // Number keys: switch once typing pauses (or after 4 digits).
+    // ponytail: only finds channels of the list being zapped; switching category would break the way back to the list.
+    LaunchedEffect(typed) {
+        if (typed.isEmpty()) return@LaunchedEffect
+        if (typed.length < 4) delay(1_500)
+        channels.indexOfFirst { it.num == typed.toInt() }.takeIf { it >= 0 }?.let { index = it }
+        typed = ""
+    }
 
     val focus = remember { FocusRequester() }
     val keyboard = LocalSoftwareKeyboardController.current
@@ -127,7 +147,7 @@ fun Player(
                     Key.Menu -> { menu = true; true }
                     Key.DirectionUp, Key.ChannelUp -> { index = (index - 1 + channels.size) % channels.size; true }
                     Key.DirectionDown, Key.ChannelDown -> { index = (index + 1) % channels.size; true }
-                    Key.DirectionCenter, Key.Enter -> { if (error != null) play(); overlayTick++; true }
+                    Key.DirectionCenter, Key.Enter -> { if (error != null) { attempts = 0; play(player) }; overlayTick++; true }
                     // Remote Play/Pause (required for Fire TV media apps); resuming jumps back to the live edge.
                     Key.MediaPlayPause, Key.MediaPlay, Key.MediaPause -> {
                         paused = !paused
@@ -138,7 +158,7 @@ fun Player(
                     }
                     Key.DirectionLeft -> { startOver(channel, epg)?.let { onStartOver(channel, it) }; true }
                     Key.DirectionRight -> true // don't let focus escape into the list behind
-                    else -> false
+                    else -> digit(e)?.let { if (typed.length < 4) typed += it; true } ?: false
                 }
             }
             .focusRequester(focus)
@@ -153,7 +173,19 @@ fun Player(
             InfoBar(channel, epg, error, paused = paused, startOver = startOver(channel, epg) != null)
         }
         if (menu) TrackMenu(player, { menu = false; focus.requestFocus() }, Modifier.align(Alignment.CenterEnd))
+        if (typed.isNotEmpty()) Text(
+            typed,
+            Modifier.align(Alignment.TopEnd).padding(48.dp).background(Color.Black.copy(alpha = 0.7f)).padding(horizontal = 20.dp, vertical = 8.dp),
+            color = Color.White, style = MaterialTheme.typography.displayMedium,
+        )
     }
+}
+
+/** The digit of a number key (top row or numpad), else null. */
+private fun digit(e: KeyEvent): Char? = when (val code = e.nativeKeyEvent.keyCode) {
+    in android.view.KeyEvent.KEYCODE_0..android.view.KeyEvent.KEYCODE_9 -> '0' + (code - android.view.KeyEvent.KEYCODE_0)
+    in android.view.KeyEvent.KEYCODE_NUMPAD_0..android.view.KeyEvent.KEYCODE_NUMPAD_9 -> '0' + (code - android.view.KeyEvent.KEYCODE_NUMPAD_0)
+    else -> null
 }
 
 /** ExoPlayer that also follows http→https redirects (movies/episodes often live on a CDN). */
