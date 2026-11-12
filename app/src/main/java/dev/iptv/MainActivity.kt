@@ -141,7 +141,9 @@ fun BrowseScreen(x: Xtream, onLogout: () -> Unit) {
     var categories by remember { mutableStateOf<List<Category>?>(null) }
     var all by remember { mutableStateOf<List<Channel>>(emptyList()) }
     var byCategory by remember { mutableStateOf<Map<String, List<Channel>>>(emptyMap()) }
-    val favPrefs = LocalContext.current.getSharedPreferences("favorites", Context.MODE_PRIVATE)
+    val context = LocalContext.current
+    val favPrefs = context.getSharedPreferences("favorites", Context.MODE_PRIVATE)
+    val lastPrefs = context.getSharedPreferences("last", Context.MODE_PRIVATE)
     var favorites by remember { mutableStateOf(favPrefs.getStringSet("ids", emptySet())!!.toSet()) }
     fun toggleFavorite(ch: Channel) {
         val id = ch.id.toString()
@@ -152,6 +154,8 @@ fun BrowseScreen(x: Xtream, onLogout: () -> Unit) {
     var selected by remember { mutableStateOf<String?>(null) }
     var playing by remember { mutableStateOf<Int?>(null) } // Index in der aktuellen Kategorie
     var returnTo by remember { mutableStateOf<Int?>(null) }
+    fun channelsOf(cat: String?) =
+        if (cat == FAVORITES) all.filter { it.id.toString() in favorites } else byCategory[cat].orEmpty()
 
     LaunchedEffect(x) {
         runCatching { x.categories() to x.channels() }
@@ -159,7 +163,15 @@ fun BrowseScreen(x: Xtream, onLogout: () -> Unit) {
                 all = chans
                 byCategory = chans.groupBy { it.categoryId }
                 categories = cats.filter { byCategory[it.id] != null }
-                selected = if (favorites.isNotEmpty()) FAVORITES else categories?.firstOrNull()?.id
+                // Direkt mit dem zuletzt gesehenen Sender starten, falls es ihn noch gibt.
+                val lastCategory = lastPrefs.getString("category", null)
+                val last = channelsOf(lastCategory).indexOfFirst { it.id == lastPrefs.getInt("channel", -1) }
+                if (last >= 0) {
+                    selected = lastCategory
+                    playing = last
+                } else {
+                    selected = if (favorites.isNotEmpty()) FAVORITES else categories?.firstOrNull()?.id
+                }
             }
             .onFailure { error = it.message ?: "Laden fehlgeschlagen" }
     }
@@ -173,14 +185,12 @@ fun BrowseScreen(x: Xtream, onLogout: () -> Unit) {
         return
     }
     val cats = if (favorites.isEmpty()) loaded else listOf(Category(FAVORITES, "★ Favoriten")) + loaded
-    val channels = remember(selected, all, favorites) {
-        if (selected == FAVORITES) all.filter { it.id.toString() in favorites } else byCategory[selected].orEmpty()
-    }
+    val channels = remember(selected, all, favorites) { channelsOf(selected) }
     val firstCategory = remember { FocusRequester() }
     val channelFocus = remember { FocusRequester() }
     val channelList = rememberLazyListState()
 
-    LaunchedEffect(Unit) { awaitFrame(); runCatching { firstCategory.requestFocus() } }
+    LaunchedEffect(Unit) { awaitFrame(); if (playing == null) runCatching { firstCategory.requestFocus() } }
     LaunchedEffect(returnTo) {
         val i = returnTo ?: return@LaunchedEffect
         channelList.scrollToItem(i)
@@ -217,7 +227,11 @@ fun BrowseScreen(x: Xtream, onLogout: () -> Unit) {
             }
         }
         playing?.let { start ->
-            Player(x, channels, start, onExit = { last -> playing = null; returnTo = last })
+            Player(
+                x, channels, start,
+                onChannel = { lastPrefs.edit().putString("category", selected).putInt("channel", it.id).apply() },
+                onExit = { last -> playing = null; returnTo = last },
+            )
         }
     }
 }

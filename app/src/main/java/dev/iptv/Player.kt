@@ -32,7 +32,7 @@ import java.util.Locale
 
 /** Vollbild-Player. Hoch/Runter (oder CH+/CH−) zappt innerhalb der Kategorie, OK zeigt Info, Zurück verlässt. */
 @Composable
-fun Player(x: Xtream, channels: List<Channel>, start: Int, onExit: (Int) -> Unit) {
+fun Player(x: Xtream, channels: List<Channel>, start: Int, onChannel: (Channel) -> Unit, onExit: (Int) -> Unit) {
     val context = LocalContext.current
     var index by remember { mutableIntStateOf(start) }
     var error by remember { mutableStateOf<String?>(null) }
@@ -59,6 +59,7 @@ fun Player(x: Xtream, channels: List<Channel>, start: Int, onExit: (Int) -> Unit
 
     LaunchedEffect(channel) {
         play()
+        onChannel(channel)
         overlayTick++
         epg = emptyList()
         epg = runCatching { x.shortEpg(channel) }.getOrDefault(emptyList())
