@@ -21,7 +21,8 @@ data class Category(val id: String, val name: String) {
     val label: String = match?.groupValues?.get(2) ?: name
 }
 
-data class Channel(val id: Int, val num: Int, val name: String, val logo: String?, val categoryId: String) {
+/** archiveDays > 0: the provider keeps recordings (catch-up) for that many days. */
+data class Channel(val id: Int, val num: Int, val name: String, val logo: String?, val categoryId: String, val archiveDays: Int = 0) {
     /** Quality suffix at the end of the name: "SPORT TV 1 FHD" → "FHD". */
     val quality: String? = QUALITY_SUFFIX.find(name)?.groupValues?.get(1)?.uppercase()
     val label: String = name.replace(QUALITY_SUFFIX, "").trim().ifEmpty { name }
@@ -39,7 +40,12 @@ fun flagOf(code: String): String? {
     return country.map { String(Character.toChars(0x1F1E6 + (it - 'A'))) }.joinToString("")
 }
 private val QUALITY_SUFFIX = Regex("""\s+[\[(]?(UHD|4K|FHD|HD|SD|LOW|HEVC)[\])]?\s*$""", RegexOption.IGNORE_CASE)
-data class Programme(val title: String, val start: Long, val end: Long)
+/** [serverStart] is the panel's own start text, needed verbatim for catch-up URLs. */
+data class Programme(val title: String, val start: Long, val end: Long, val serverStart: String? = null)
+
+/** "2026-11-11 23:35:00" → "2026-11-11:23-35", the start format of Xtream timeshift URLs. */
+fun archiveTime(serverStart: String): String? =
+    Regex("""^(\d{4}-\d{2}-\d{2})[ T](\d{2}):(\d{2})""").find(serverStart)?.destructured?.let { (d, h, m) -> "$d:$h-$m" }
 
 /** Programmes that have not ended yet, in order: the running one first. */
 fun upcoming(programmes: List<Programme>, now: Long, limit: Int): List<Programme> =
@@ -87,6 +93,7 @@ class Xtream(val account: Account) {
                 name = it.optString("name"),
                 logo = it.str("stream_icon"),
                 categoryId = it.optString("category_id"),
+                archiveDays = if (it.optString("tv_archive") == "1") it.optString("tv_archive_duration").toIntOrNull() ?: 1 else 0,
             )
         }
 
@@ -109,6 +116,7 @@ class Xtream(val account: Account) {
                 title = String(Base64.decode(it.optString("title"), Base64.DEFAULT)),
                 start = it.optLong("start_timestamp") * 1000,
                 end = it.optLong("stop_timestamp") * 1000,
+                serverStart = it.str("start"),
             )
         }
 
@@ -144,6 +152,18 @@ class Xtream(val account: Account) {
 
     fun episodeUrl(episode: Episode) =
         "$base/series/${Uri.encode(account.user)}/${Uri.encode(account.pass)}/${episode.id}.${episode.ext}"
+
+    /** Recorded programmes of a catch-up channel, newest first. Not filtered by has_archive: panels set it hours late. */
+    suspend fun archive(channel: Channel, now: Long = System.currentTimeMillis()): List<Programme> =
+        epg(get("&action=get_simple_data_table&stream_id=${channel.id}"))
+            .filter { it.end <= now && it.start >= now - channel.archiveDays * 86_400_000L && it.serverStart != null }
+            .sortedByDescending { it.start }
+
+    fun archiveUrl(channel: Channel, p: Programme): String? {
+        val time = p.serverStart?.let(::archiveTime) ?: return null
+        val minutes = ((p.end - p.start) / 60_000).coerceAtLeast(1)
+        return "$base/timeshift/${Uri.encode(account.user)}/${Uri.encode(account.pass)}/$minutes/$time/${channel.id}.ts"
+    }
 
     /** Live format: MPEG-TS first; switches to HLS for the rest of the session if a TS stream fails (see Player). */
     @Volatile var liveExt = "ts"

@@ -88,4 +88,9 @@ class SourcesTest {
         assertEquals(listOf("now", "next"), upcoming(list, now = 150, limit = 2).map { it.title })
         assertEquals(emptyList<String>(), upcoming(list, now = 600, limit = 2).map { it.title })
     }
+
+    @Test fun archiveTimeFormat() {
+        assertEquals("2026-11-11:23-35", archiveTime("2026-11-11 23:35:00"))
+        assertEquals(null, archiveTime("yesterday"))
+    }
 }

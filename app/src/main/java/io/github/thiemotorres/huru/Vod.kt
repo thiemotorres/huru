@@ -444,8 +444,9 @@ private fun SeriesDetail(
 }
 
 /** Player for movies and episodes: OK pauses, Left/Right seeks, the position is remembered. */
+/** [store] null: nothing is remembered (catch-up recordings expire anyway). */
 @Composable
-fun VodPlayer(playback: Playback, store: ProgressStore, onEnded: () -> Unit, onExit: () -> Unit) {
+fun VodPlayer(playback: Playback, store: ProgressStore?, onEnded: () -> Unit, onExit: () -> Unit) {
     val context = LocalContext.current
     val keyboard = LocalSoftwareKeyboardController.current
     LaunchedEffect(Unit) { keyboard?.hide() } // an open search keyboard would otherwise pop up over the video
@@ -459,11 +460,11 @@ fun VodPlayer(playback: Playback, store: ProgressStore, onEnded: () -> Unit, onE
     var menu by remember { mutableStateOf(false) }
 
     lateinit var player: ExoPlayer
-    fun save() = store.save(playback, player.currentPosition, player.duration)
+    fun save() = store?.save(playback, player.currentPosition, player.duration)
     player = remember {
         newPlayer(context).build().apply {
             setMediaItem(MediaItem.fromUri(playback.url))
-            seekTo(store.position(playback.resumeKey))
+            seekTo(store?.position(playback.resumeKey) ?: 0)
             prepare()
             playWhenReady = true
             addListener(object : MediaPlayer.Listener {

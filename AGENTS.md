@@ -55,7 +55,7 @@ adb install -r app/build/outputs/apk/release/app-release.apk
 |---|---|
 | `Xtream.kt` | Xtream Codes API client, JSON parsing, list cache (`loadLists`) |
 | `MainActivity.kt` | App shell, login, mode switch (TV/Movies/Series), live channel browser |
-| `Guide.kt` | Channel rows with the 2-hour programme guide |
+| `Guide.kt` | Channel rows with the 2-hour programme guide, catch-up list (⟲ channels, Right) |
 | `Player.kt` | Live player (zapping, info overlay), shared player factory and video surface |
 | `Vod.kt` | Movies/series grid, search, continue watching, series detail, VOD player |
 | `Splash.kt` | Animated splash and brand colours |

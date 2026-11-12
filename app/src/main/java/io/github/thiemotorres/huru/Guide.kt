@@ -4,9 +4,16 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.produceState
+import androidx.compose.foundation.focusGroup
+import androidx.compose.foundation.focusable
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.runtime.*
+import androidx.compose.ui.ExperimentalComposeUiApi
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.input.key.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -15,8 +22,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.*
+import kotlinx.coroutines.android.awaitFrame
 import kotlinx.coroutines.delay
+import java.text.SimpleDateFormat
+import java.util.Calendar
 import java.util.Date
+import java.util.Locale
 
 const val GUIDE_WINDOW = 2 * 60 * 60 * 1000L
 private const val HALF_HOUR = 30 * 60 * 1000L
@@ -88,6 +99,7 @@ fun GuideRow(
                     overflow = TextOverflow.Ellipsis,
                 )
                 channel.quality?.let { Badge(it) }
+                if (channel.archiveDays > 0) Text("⟲", Modifier.padding(start = 8.dp), color = Color.White.copy(alpha = 0.6f))
                 if (favorite) Text("★", Modifier.padding(horizontal = 8.dp), color = Accent)
             }
             BoxWithConstraints(Modifier.weight(1f).fillMaxHeight().padding(vertical = 8.dp)) {
@@ -138,3 +150,56 @@ fun GuideRow(
         }
     }
 }
+
+/**
+ * Catch-up list of a channel (Right on a ⟲ channel). Traps focus until closed; [active] false while a recording plays
+ * on top, then focus comes back to the last picked programme.
+ */
+@Composable
+@OptIn(ExperimentalComposeUiApi::class) // focusProperties exit
+fun ArchivePanel(x: Xtream, channel: Channel, active: Boolean, onPlay: (Programme) -> Unit, onClose: () -> Unit, modifier: Modifier = Modifier) {
+    var items by remember { mutableStateOf<List<Programme>?>(null) }
+    LaunchedEffect(channel) { items = runCatching { x.archive(channel) }.getOrDefault(emptyList()) }
+    var picked by remember { mutableIntStateOf(0) }
+    val focus = remember { FocusRequester() }
+    LaunchedEffect(active, items) { if (active && items != null) { awaitFrame(); runCatching { focus.requestFocus() } } }
+    val list = items
+    val today = stringResource(R.string.today)
+    val yesterday = stringResource(R.string.yesterday)
+    fun day(t: Long): String {
+        val days = (dayStart(System.currentTimeMillis()) - dayStart(t)) / 86_400_000L
+        return when (days) { 0L -> today; 1L -> yesterday; else -> SimpleDateFormat("EE dd.MM.", Locale.getDefault()).format(Date(t)) }
+    }
+    LazyColumn(
+        modifier
+            .fillMaxHeight().width(560.dp)
+            .background(Color.Black.copy(alpha = 0.9f))
+            .padding(32.dp)
+            // Compose turns Back into a focus exit, which the trap below cancels – so close here.
+            .onPreviewKeyEvent { e -> if (e.key == Key.Back && e.type == KeyEventType.KeyDown) { onClose(); true } else false }
+            .focusProperties { exit = { FocusRequester.Cancel } }
+            .focusGroup()
+            // Nothing to focus while loading or empty: the panel itself takes focus so D-pad stays here.
+            .then(if (list.isNullOrEmpty()) Modifier.focusRequester(focus).focusable() else Modifier),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        item { Text(stringResource(R.string.archive_title, channel.label), style = MaterialTheme.typography.titleLarge, color = Color.White) }
+        when {
+            list == null -> item { Text(stringResource(R.string.loading), color = Color.White.copy(alpha = 0.6f)) }
+            list.isEmpty() -> item { Text(stringResource(R.string.archive_empty), color = Color.White.copy(alpha = 0.6f)) }
+            else -> itemsIndexed(list) { i, p ->
+                ListItem(
+                    selected = false,
+                    onClick = { picked = i; onPlay(p) },
+                    headlineContent = { Text(p.title, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                    supportingContent = { Text("${day(p.start)}  ${hhmm.format(Date(p.start))}–${hhmm.format(Date(p.end))}") },
+                    modifier = if (i == picked) Modifier.focusRequester(focus) else Modifier,
+                )
+            }
+        }
+    }
+}
+
+private fun dayStart(t: Long): Long = Calendar.getInstance().apply {
+    timeInMillis = t; set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0); set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
+}.timeInMillis

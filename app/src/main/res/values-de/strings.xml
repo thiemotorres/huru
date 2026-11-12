@@ -81,4 +81,8 @@
     <string name="pin_remove">PIN entfernen</string>
     <string name="display_title">Anzeige</string>
     <string name="display_flags">Länderflaggen statt Kürzel</string>
+    <string name="archive_title">%1$s · Verpasst</string>
+    <string name="archive_empty">Keine Aufzeichnungen verfügbar</string>
+    <string name="today">Heute</string>
+    <string name="yesterday">Gestern</string>
 </resources>

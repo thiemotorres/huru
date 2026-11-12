@@ -271,11 +271,14 @@ fun BrowseScreen(
     var selected by remember { mutableStateOf<String?>(null) }
     var playing by remember { mutableStateOf<Int?>(null) } // index within the current category
     var returnTo by remember { mutableStateOf<Int?>(null) }
+    var refocus by remember { mutableIntStateOf(0) } // re-run the focus restore even if returnTo is unchanged
     val epg = remember { mutableStateMapOf<Int, List<Programme>>() } // stream_id -> programmes, cached for the session
     val lock = remember(x) { Lock(context, x.account) }
     var menu by remember { mutableStateOf<Category?>(null) } // long-press menu
     var gate by remember { mutableStateOf<(() -> Unit)?>(null) } // PIN prompt, runs the action on success
     var focusCat by remember { mutableStateOf<String?>(null) } // category to refocus after menu/PIN
+    var archiveOf by remember { mutableStateOf<Channel?>(null) } // catch-up list open for this channel
+    var replay by remember { mutableStateOf<Playback?>(null) } // catch-up recording playing
     // Locked categories show no channels, also not via favourites or recently watched.
     fun channelsOf(cat: String?, closed: Set<String>) =
         when (cat) {
@@ -342,7 +345,7 @@ fun BrowseScreen(
     val channelList = rememberLazyListState()
 
     LaunchedEffect(Unit) { awaitFrame(); if (autoFocus && playing == null) runCatching { firstCategory.requestFocus() } }
-    LaunchedEffect(returnTo) {
+    LaunchedEffect(returnTo, refocus) {
         val i = returnTo ?: return@LaunchedEffect
         channelList.scrollToItem(i)
         awaitFrame()
@@ -398,7 +401,11 @@ fun BrowseScreen(
                             favorite = ch.id.toString() in favorites,
                             onClick = { returnTo = null; playing = i },
                             onLongClick = { toggleFavorite(ch) },
-                            modifier = if (i == returnTo) Modifier.focusRequester(channelFocus) else Modifier,
+                            modifier = (if (i == returnTo) Modifier.focusRequester(channelFocus) else Modifier)
+                                .onPreviewKeyEvent { e ->
+                                    // Right on a catch-up channel opens its recordings.
+                                    if (ch.archiveDays > 0 && e.key == Key.DirectionRight && e.type == KeyEventType.KeyDown) { archiveOf = ch; true } else false
+                                },
                         )
                     }
                 }
@@ -421,6 +428,15 @@ fun BrowseScreen(
                 },
             )
         }
+        archiveOf?.let { ch ->
+            ArchivePanel(
+                x, ch, active = replay == null,
+                onPlay = { p -> x.archiveUrl(ch, p)?.let { replay = Playback(it, "${ch.label} · ${p.title}", "archive", ch.logo) } },
+                onClose = { archiveOf = null; returnTo = channels.indexOf(ch).takeIf { it >= 0 }; refocus++ },
+                modifier = Modifier.align(Alignment.CenterEnd),
+            )
+        }
+        replay?.let { p -> key(p.url) { VodPlayer(p, store = null, onEnded = { replay = null }, onExit = { replay = null }) } }
         menu?.let { cat ->
             val isLocked = lock.isLocked("live", cat)
             CategoryMenu(

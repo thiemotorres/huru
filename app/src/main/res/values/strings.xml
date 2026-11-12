@@ -82,4 +82,8 @@
     <string name="pin_remove">Remove PIN</string>
     <string name="display_title">Display</string>
     <string name="display_flags">Country flags instead of codes</string>
+    <string name="archive_title">%1$s · Catch-up</string>
+    <string name="archive_empty">No recordings available</string>
+    <string name="today">Today</string>
+    <string name="yesterday">Yesterday</string>
 </resources>

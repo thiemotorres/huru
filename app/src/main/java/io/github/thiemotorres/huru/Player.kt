@@ -150,7 +150,11 @@ fun Player(x: Xtream, channels: List<Channel>, start: Int, onChannel: (Channel) 
 /** ExoPlayer that also follows http→https redirects (movies/episodes often live on a CDN). */
 @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
 fun newPlayer(context: android.content.Context): ExoPlayer.Builder {
-    val http = DefaultHttpDataSource.Factory().setAllowCrossProtocolRedirects(true)
+    val http = DefaultHttpDataSource.Factory()
+        .setAllowCrossProtocolRedirects(true)
+        // No keep-alive: some catch-up servers leave stream bytes on an aborted connection, and the next request
+        // (ExoPlayer jumps to the end of a .ts file to find its length) then reads them as "Unexpected status line".
+        .setDefaultRequestProperties(mapOf("Connection" to "close"))
     // Preferred audio/subtitle language from the track menu, for every player and channel.
     val prefs = trackPrefs(context)
     val selector = DefaultTrackSelector(context).apply {
