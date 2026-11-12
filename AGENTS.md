@@ -27,6 +27,11 @@ adb install -r app/build/outputs/apk/release/app-release.apk
 - Release key: `~/.android/huru-release.jks` on the maintainer's Mac, referenced by the git-ignored `keystore.properties`; CI gets it from the `HURU_*` repository secrets. **Never commit keystores or passwords.** Losing the key means store updates are impossible – it must be backed up.
 - `-Pstore=amazon` sets `BuildConfig.DONATE = false` (Amazon's rules on external payments are unclear).
 
+## Sources
+
+- All per-source data (favourites, hidden categories, last channel, progress) goes through `Context.sourcePrefs(base, account)`; never open these SharedPreferences directly. New per-source files must be added to `SOURCE_PREFS` in `Sources.kt` so deleting a source removes them.
+- The source migrated from the single-account era has id `""` and keeps the original file names.
+
 ## Store & screenshots
 
 - Mockup screenshots: `Mockups.kt` (Paparazzi, fictional data) → `./gradlew recordPaparazziDebug` → copy to `docs/screenshots/`.
@@ -54,7 +59,9 @@ adb install -r app/build/outputs/apk/release/app-release.apk
 | `Player.kt` | Live player (zapping, info overlay), shared player factory and video surface |
 | `Vod.kt` | Movies/series grid, search, continue watching, series detail, VOD player |
 | `Splash.kt` | Animated splash and brand colours |
-| `About.kt` | About page (version, license, Ko-fi QR outside the Amazon build) |
+| `Sources.kt` | Saved sources (multiple Xtream logins), migration, per-source preferences |
+| `Settings.kt` | Settings page (manage sources) and the source form incl. first-run setup with demo |
+| `About.kt` | About panel (version, license, Ko-fi QR outside the Amazon build) |
 | `Text.kt` | Search key and episode title cleanup |
 
 ## Conventions

@@ -201,7 +201,12 @@ class Mockups {
         }
     }
 
-    @Test fun about() = shot { AboutScreen(header = { ModeSwitch(3, onMode = {}, focus = false) }, donate = true, version = "0.1.0") }
+    @Test fun settings() = shot {
+        val sources = listOf(DEMO_SOURCE.copy(id = "demo"), Account("http://tv.example.com:8080", "anna", "x", id = "home", name = "Home"))
+        SettingsScreen(header = { ModeSwitch(3, onMode = {}, focus = false) }, sources, sources[1], {}, {}, {})
+    }
+
+    @Test fun setup() = shot { SourceForm(initial = null, onSave = {}, onCancel = null) }
 
     @Test fun splash() = shot { SplashFrame(rise = 1f, fly = 1f, flap = 1f, word = 1f) }
 }

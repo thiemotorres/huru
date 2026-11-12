@@ -62,3 +62,16 @@ class TextTest {
         assertEquals(true, searchKey("Pokémon: O Filme").contains(searchKey("POKEMON")))
     }
 }
+
+class SourcesTest {
+    @Test fun roundTrip() {
+        val sources = listOf(DEMO_SOURCE.copy(id = "a1"), Account("http://tv.example.com:8080", "u", "p\"w", id = "", name = "Home"))
+        assertEquals(sources, decodeSources(encodeSources(sources)))
+    }
+
+    @Test fun host() {
+        assertEquals("tv.example.com", hostOf("http://tv.example.com:8080/"))
+        assertEquals("huru-demo.feto.dev", hostOf("https://huru-demo.feto.dev"))
+        assertEquals("10.0.0.5", hostOf("10.0.0.5:25461"))
+    }
+}

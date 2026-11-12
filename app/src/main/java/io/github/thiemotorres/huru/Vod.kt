@@ -55,8 +55,8 @@ data class Playback(
 data class Progress(val playback: Playback, val position: Long, val duration: Long, val updated: Long)
 
 /** Started movies/episodes ("movie-…", "ep-…") for resuming and "Continue watching". */
-class ProgressStore(context: Context) {
-    private val prefs = context.getSharedPreferences("continue", Context.MODE_PRIVATE)
+class ProgressStore(context: Context, source: Account) {
+    private val prefs = context.sourcePrefs("continue", source)
 
     fun save(p: Playback, position: Long, duration: Long) {
         // Nearly finished or barely started: don't remember.
@@ -107,7 +107,7 @@ fun VodScreen(x: Xtream, series: Boolean, header: @Composable () -> Unit, autoFo
     var playing by remember { mutableStateOf<Playback?>(null) }
     var lastPicked by remember { mutableStateOf<Int?>(null) } // poster that focus returns to
     var query by remember { mutableStateOf("") }
-    val store = remember { ProgressStore(context) }
+    val store = remember { ProgressStore(context, x.account) }
     val prefix = if (series) "ep-" else "movie-"
     val pickedFocus = remember { FocusRequester() }
     val firstCategory = remember { FocusRequester() }
@@ -226,6 +226,7 @@ fun VodScreen(x: Xtream, series: Boolean, header: @Composable () -> Unit, autoFo
             key(p.resumeKey) { // new episode → new player
                 VodPlayer(
                     p,
+                    store,
                     onEnded = { playing = p.following.firstOrNull()?.copy(following = p.following.drop(1)) },
                     onExit = { playing = null },
                 )
@@ -325,7 +326,7 @@ private fun SeriesDetail(
     }
     BackHandler(enabled = !blocked, onBack = onBack)
 
-    val positions = remember(blocked) { ProgressStore(context).list("ep-").associate { it.playback.resumeKey to it.position } }
+    val positions = remember(blocked) { ProgressStore(context, x.account).list("ep-").associate { it.playback.resumeKey to it.position } }
     val seasons = episodes.orEmpty().map { it.season }.distinct()
 
     Row(
@@ -396,9 +397,8 @@ private fun SeriesDetail(
 
 /** Player for movies and episodes: OK pauses, Left/Right seeks, the position is remembered. */
 @Composable
-fun VodPlayer(playback: Playback, onEnded: () -> Unit, onExit: () -> Unit) {
+fun VodPlayer(playback: Playback, store: ProgressStore, onEnded: () -> Unit, onExit: () -> Unit) {
     val context = LocalContext.current
-    val store = remember { ProgressStore(context) }
     val keyboard = LocalSoftwareKeyboardController.current
     LaunchedEffect(Unit) { keyboard?.hide() } // an open search keyboard would otherwise pop up over the video
     var error by remember { mutableStateOf<String?>(null) }

@@ -4,9 +4,6 @@
     <string name="mode_tv">TV</string>
     <string name="mode_movies">Movies</string>
     <string name="mode_series">Series</string>
-    <string name="mode_about">About</string>
-
-    <string name="login_title">Xtream login</string>
     <string name="login_server">Server (e.g. http://host:8080)</string>
     <string name="login_user">Username</string>
     <string name="login_password">Password</string>
@@ -14,7 +11,6 @@
     <string name="login_connecting">Connecting…</string>
     <string name="login_failed">Couldn\'t sign in: %1$s</string>
     <string name="connection_failed">Connection failed</string>
-    <string name="sign_out">Sign out</string>
 
     <string name="loading_failed">Loading failed</string>
     <string name="loading_channels">Loading channels…</string>
@@ -44,4 +40,21 @@
     <string name="about_license">Source-available under the PolyForm Noncommercial License 1.0.0. Commercial use is not permitted.</string>
     <string name="about_donate">Enjoying Huru? Buy me a coffee</string>
     <string name="about_donate_qr">Ko-fi QR code</string>
+
+    <string name="mode_settings">⚙</string>
+    <string name="setup_welcome">Welcome to Huru</string>
+    <string name="setup_hint">Add your Xtream Codes login – or try the demo with free, legal test content.</string>
+    <string name="source_add_title">Add source</string>
+    <string name="source_edit_title">Edit source</string>
+    <string name="source_name">Name (optional)</string>
+    <string name="source_save">Save</string>
+    <string name="try_demo">Try the demo</string>
+    <string name="cancel">Cancel</string>
+    <string name="sources_title">Sources</string>
+    <string name="source_active">active</string>
+    <string name="source_edit">Edit</string>
+    <string name="source_delete">Delete</string>
+    <string name="source_delete_confirm">Delete?</string>
+    <string name="source_add">+ Add source</string>
+    <string name="manage_sources">Manage sources</string>
 </resources>

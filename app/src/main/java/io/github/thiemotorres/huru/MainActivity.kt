@@ -1,7 +1,6 @@
 package io.github.thiemotorres.huru
 
 import android.content.Context
-import android.content.SharedPreferences
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -51,12 +50,11 @@ import kotlinx.coroutines.launch
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val prefs = getSharedPreferences("account", MODE_PRIVATE)
         setContent {
             MaterialTheme(colorScheme = darkColorScheme(primary = Accent, surface = Night, background = Night)) {
                 var splash by remember { mutableStateOf(true) }
                 Box {
-                    Surface(Modifier.fillMaxSize(), shape = RectangleShape) { App(prefs) }
+                    Surface(Modifier.fillMaxSize(), shape = RectangleShape) { App() }
                     // Splash on top of the app; lists and the last channel already load underneath
                     androidx.compose.animation.AnimatedVisibility(splash, exit = androidx.compose.animation.fadeOut()) {
                         Splash { splash = false }
@@ -70,30 +68,48 @@ class MainActivity : ComponentActivity() {
 val Accent = Coral
 val Night = Color(0xFF1E1520) // very dark plum app background
 
-// ponytail: credentials stored in plain text in app-private SharedPreferences. Fine for a personal device.
-private fun SharedPreferences.account() =
-    getString("server", null)?.let { Account(it, getString("user", "")!!, getString("pass", "")!!) }
-
-private fun SharedPreferences.save(a: Account?) = edit().apply {
-    if (a == null) clear() else putString("server", a.server).putString("user", a.user).putString("pass", a.pass)
-}.apply()
-
 @Composable
-fun App(prefs: SharedPreferences) {
-    var xtream by remember { mutableStateOf(prefs.account()?.let(::Xtream)) }
-    var mode by remember { mutableIntStateOf(0) } // 0 TV, 1 movies, 2 series, 3 about
+fun App() {
+    val context = LocalContext.current
+    val store = remember { SourceStore(context) }
+    var sources by remember { mutableStateOf(store.load()) }
+    var activeId by remember { mutableStateOf(store.activeId()) }
+    val active = sources.firstOrNull { it.id == activeId } ?: sources.firstOrNull()
+    var mode by remember { mutableIntStateOf(0) } // 0 TV, 1 movies, 2 series, 3 settings
     var switched by remember { mutableStateOf(false) } // after switching modes, focus the switcher instead of the list
     var autoplay by remember { mutableStateOf(true) } // auto-play the last channel only on app start
+    fun update(list: List<Account>, newActive: String?) {
+        sources = list; activeId = newActive; store.save(list, newActive)
+    }
     val header = @Composable { ModeSwitch(mode, onMode = { mode = it; switched = true }, focus = switched) }
-    when (val x = xtream) {
-        null -> LoginScreen { prefs.save(it.account); xtream = it }
-        else -> when (mode) {
+
+    if (active == null) {
+        // First run (or all sources deleted): set up a source or try the demo.
+        SourceForm(initial = null, onSave = { update(listOf(it), it.id); mode = 0; switched = false }, onCancel = null)
+        return
+    }
+    key(active) { // switching or editing the active source rebuilds everything for it
+        val x = remember { Xtream(active) }
+        when (mode) {
             0 -> BrowseScreen(
                 x, header, autoFocus = !switched, autoplay = autoplay,
                 onAutoplayed = { autoplay = false },
-                onLogout = { prefs.save(null); xtream = null },
+                onManageSources = { mode = 3; switched = true },
             )
-            3 -> AboutScreen(header)
+            3 -> SettingsScreen(
+                header, sources, active,
+                onActivate = { autoplay = false; update(sources, it.id); mode = 0; switched = false },
+                onSave = { saved ->
+                    val list = if (sources.any { it.id == saved.id }) sources.map { if (it.id == saved.id) saved else it } else sources + saved
+                    if (sources.none { it.id == saved.id }) store.deleteData(saved) // fresh id: make sure nothing stale is left
+                    update(list, activeId ?: saved.id)
+                },
+                onDelete = { gone ->
+                    store.deleteData(gone)
+                    val list = sources - gone
+                    update(list, if (gone == active) list.firstOrNull()?.id else active.id)
+                },
+            )
             // key: movies and series must not share state (selected category, continue-watching list, …)
             else -> key(mode) { VodScreen(x, series = mode == 2, header, autoFocus = !switched) }
         }
@@ -104,7 +120,7 @@ fun App(prefs: SharedPreferences) {
 fun ModeSwitch(mode: Int, onMode: (Int) -> Unit, focus: Boolean) {
     val requester = remember { FocusRequester() }
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        listOf(R.string.mode_tv, R.string.mode_movies, R.string.mode_series, R.string.mode_about).map { stringResource(it) }.forEachIndexed { i, label ->
+        listOf(R.string.mode_tv, R.string.mode_movies, R.string.mode_series, R.string.mode_settings).map { stringResource(it) }.forEachIndexed { i, label ->
             Surface(
                 onClick = { if (i != mode) onMode(i) },
                 modifier = if (i == mode) Modifier.focusRequester(requester) else Modifier,
@@ -121,46 +137,6 @@ fun ModeSwitch(mode: Int, onMode: (Int) -> Unit, focus: Boolean) {
         }
     }
     LaunchedEffect(Unit) { if (focus) { awaitFrame(); runCatching { requester.requestFocus() } } }
-}
-
-@Composable
-fun LoginScreen(onLogin: (Xtream) -> Unit) {
-    var server by remember { mutableStateOf("") }
-    var user by remember { mutableStateOf("") }
-    var pass by remember { mutableStateOf("") }
-    var busy by remember { mutableStateOf(false) }
-    var error by remember { mutableStateOf<String?>(null) }
-    val scope = rememberCoroutineScope()
-    val keyboard = LocalSoftwareKeyboardController.current
-    val focusManager = LocalFocusManager.current
-    val loginFailed = stringResource(R.string.login_failed, "%s")
-    val connectionFailed = stringResource(R.string.connection_failed)
-
-    Column(
-        Modifier.fillMaxSize().padding(48.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterVertically),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        Text(stringResource(R.string.login_title), style = MaterialTheme.typography.headlineMedium)
-        Field(stringResource(R.string.login_server), server, KeyboardType.Uri) { server = it }
-        Field(stringResource(R.string.login_user), user) { user = it }
-        Field(stringResource(R.string.login_password), pass, KeyboardType.Password, password = true) { pass = it }
-        Button(enabled = !busy && server.isNotBlank(), onClick = {
-            busy = true; error = null
-            val x = Xtream(Account(server, user, pass))
-            scope.launch {
-                runCatching { x.login() }
-                    .onSuccess {
-                        // Otherwise the IME session stays open and Fire OS re-shows the keyboard over the player.
-                        keyboard?.hide()
-                        focusManager.clearFocus(force = true)
-                        onLogin(x)
-                    }
-                    .onFailure { error = it.message?.let { m -> loginFailed.format(m) } ?: connectionFailed; busy = false }
-            }
-        }) { Text(stringResource(if (busy) R.string.login_connecting else R.string.login_submit)) }
-        error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
-    }
 }
 
 /**
@@ -257,21 +233,21 @@ fun BrowseScreen(
     autoFocus: Boolean,
     autoplay: Boolean,
     onAutoplayed: () -> Unit,
-    onLogout: () -> Unit,
+    onManageSources: () -> Unit,
 ) {
     var categories by remember { mutableStateOf<List<Category>?>(null) }
     var all by remember { mutableStateOf<List<Channel>>(emptyList()) }
     var byCategory by remember { mutableStateOf<Map<String, List<Channel>>>(emptyMap()) }
     val context = LocalContext.current
-    val favPrefs = context.getSharedPreferences("favorites", Context.MODE_PRIVATE)
-    val lastPrefs = context.getSharedPreferences("last", Context.MODE_PRIVATE)
+    val favPrefs = context.sourcePrefs("favorites", x.account)
+    val lastPrefs = context.sourcePrefs("last", x.account)
     var favorites by remember { mutableStateOf(favPrefs.getStringSet("ids", emptySet())!!.toSet()) }
     fun toggleFavorite(ch: Channel) {
         val id = ch.id.toString()
         favorites = if (id in favorites) favorites - id else favorites + id
         favPrefs.edit().putStringSet("ids", favorites).apply()
     }
-    val catPrefs = context.getSharedPreferences("categories", Context.MODE_PRIVATE)
+    val catPrefs = context.sourcePrefs("categories", x.account)
     var hidden by remember { mutableStateOf(catPrefs.getStringSet("hidden", emptySet())!!.toSet()) }
     var showHidden by remember { mutableStateOf(false) }
     fun toggleHidden(cat: Category) {
@@ -318,7 +294,7 @@ fun BrowseScreen(
     if (loaded == null) {
         Column(Modifier.fillMaxSize(), Arrangement.Center, Alignment.CenterHorizontally) {
             Text(error ?: stringResource(R.string.loading_channels))
-            if (error != null) Button(onClick = onLogout, Modifier.padding(top = 16.dp)) { Text(stringResource(R.string.sign_out)) }
+            if (error != null) Button(onClick = onManageSources, Modifier.padding(top = 16.dp)) { Text(stringResource(R.string.manage_sources)) }
         }
         return
     }

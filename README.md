@@ -6,7 +6,9 @@
 <p align="center"><img src="docs/screenshots/player.png" alt="Player" width="49%"> <img src="docs/screenshots/series-detail.png" alt="Series" width="49%"></p>
 <p align="center"><sub>Screenshots use fictional channels and artwork.</sub></p>
 
-**Try it:** sign in with server `https://huru-demo.feto.dev`, username `demo`, password `demo` – a demo server with legal content only (see [`demo-server/`](demo-server/)).
+**Try it:** choose **"Try the demo"** on the first screen – it connects to a demo server with legal content only (see [`demo-server/`](demo-server/)).
+
+<p align="center"><img src="docs/screenshots/setup.png" alt="Setup" width="49%"> <img src="docs/screenshots/settings.png" alt="Sources" width="49%"></p>
 
 > **Note:** Huru does not provide any channels, movies or series and does not point to any provider. You need your own, legitimate subscription.
 
@@ -15,6 +17,7 @@
 - **Live TV** with a programme guide (EPG) built into the channel list, favourites and hideable categories
 - **Fast zapping:** Up/Down in the player, starts straight into the last watched channel
 - **Movies & series** as a poster grid with search, "Continue watching" and automatic next episode
+- **Multiple sources:** add, edit and switch between Xtream logins; favourites and progress are kept per source
 - **Built for the remote:** everything works with the D-pad; long-press OK for favourites or hiding categories
 
 ## Install

@@ -3,9 +3,6 @@
     <string name="mode_tv">TV</string>
     <string name="mode_movies">Filme</string>
     <string name="mode_series">Serien</string>
-    <string name="mode_about">Info</string>
-
-    <string name="login_title">Xtream-Zugang</string>
     <string name="login_server">Server (z. B. http://host:8080)</string>
     <string name="login_user">Benutzername</string>
     <string name="login_password">Passwort</string>
@@ -13,7 +10,6 @@
     <string name="login_connecting">Verbinde…</string>
     <string name="login_failed">Anmeldung fehlgeschlagen: %1$s</string>
     <string name="connection_failed">Verbindung fehlgeschlagen</string>
-    <string name="sign_out">Abmelden</string>
 
     <string name="loading_failed">Laden fehlgeschlagen</string>
     <string name="loading_channels">Lade Sender…</string>
@@ -43,4 +39,21 @@
     <string name="about_license">Quellcode offen unter der PolyForm Noncommercial License 1.0.0. Kommerzielle Nutzung ist nicht erlaubt.</string>
     <string name="about_donate">Gefällt dir Huru? Spendier mir einen Kaffee</string>
     <string name="about_donate_qr">Ko-fi-QR-Code</string>
+
+    <string name="mode_settings">⚙</string>
+    <string name="setup_welcome">Willkommen bei Huru</string>
+    <string name="setup_hint">Füge deinen Xtream-Codes-Zugang hinzu – oder probiere die Demo mit freien, legalen Testinhalten.</string>
+    <string name="source_add_title">Quelle hinzufügen</string>
+    <string name="source_edit_title">Quelle bearbeiten</string>
+    <string name="source_name">Name (optional)</string>
+    <string name="source_save">Speichern</string>
+    <string name="try_demo">Demo ausprobieren</string>
+    <string name="cancel">Abbrechen</string>
+    <string name="sources_title">Quellen</string>
+    <string name="source_active">aktiv</string>
+    <string name="source_edit">Bearbeiten</string>
+    <string name="source_delete">Löschen</string>
+    <string name="source_delete_confirm">Wirklich?</string>
+    <string name="source_add">+ Quelle hinzufügen</string>
+    <string name="manage_sources">Quellen verwalten</string>
 </resources>

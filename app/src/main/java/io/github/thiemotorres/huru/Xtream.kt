@@ -11,7 +11,8 @@ import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URL
 
-data class Account(val server: String, val user: String, val pass: String)
+/** One Xtream source. id "" is the source migrated from the single-account era (keeps its data file names). */
+data class Account(val server: String, val user: String, val pass: String, val id: String = "", val name: String = "")
 data class Category(val id: String, val name: String) {
     private val match = COUNTRY_PREFIX.matchEntire(name)
     /** Country prefix from "PT | Desporto" → "PT". */
@@ -160,4 +161,4 @@ suspend fun Xtream.loadLists(cacheDir: File, actions: List<String>, show: suspen
 /** Optional text: JSON null and blank values become null (optString would return "null"). */
 private fun JSONObject.str(key: String): String? = if (isNull(key)) null else optString(key).ifBlank { null }
 
-private fun JSONArray.objects() = (0 until length()).mapNotNull { optJSONObject(it) }
+internal fun JSONArray.objects() = (0 until length()).mapNotNull { optJSONObject(it) }
