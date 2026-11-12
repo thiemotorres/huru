@@ -42,6 +42,7 @@ import androidx.media3.datasource.HttpDataSource
 import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import kotlinx.coroutines.delay
@@ -150,9 +151,23 @@ fun Player(x: Xtream, channels: List<Channel>, start: Int, onChannel: (Channel) 
 @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
 fun newPlayer(context: android.content.Context): ExoPlayer.Builder {
     val http = DefaultHttpDataSource.Factory().setAllowCrossProtocolRedirects(true)
+    // Preferred audio/subtitle language from the track menu, for every player and channel.
+    val prefs = trackPrefs(context)
+    val selector = DefaultTrackSelector(context).apply {
+        setParameters(
+            buildUponParameters()
+                .setPreferredAudioLanguage(prefs.getString("audio", null))
+                .setPreferredTextLanguage(prefs.getString("text", null))
+                .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, prefs.getBoolean("textOff", false)),
+        )
+    }
     return ExoPlayer.Builder(context)
+        .setTrackSelector(selector)
         .setMediaSourceFactory(DefaultMediaSourceFactory(DefaultDataSource.Factory(context, http)))
 }
+
+/** Device-wide (not per source): language is a viewer preference, not a provider one. */
+private fun trackPrefs(context: android.content.Context) = context.getSharedPreferences("tracks", android.content.Context.MODE_PRIVATE)
 
 /** Readable error: the HTTP status if the server sent one. */
 fun describe(e: PlaybackException): String =
@@ -199,11 +214,21 @@ fun TrackMenu(player: ExoPlayer, onClose: () -> Unit, modifier: Modifier = Modif
     val first = remember { FocusRequester() }
     LaunchedEffect(Unit) { awaitFrame(); runCatching { first.requestFocus() } }
 
+    val prefs = trackPrefs(LocalContext.current)
     fun select(group: Tracks.Group?, i: Int, type: Int) {
+        val language = group?.getTrackFormat(i)?.language?.takeIf { it != "und" }
+        val audio = type == C.TRACK_TYPE_AUDIO
         player.trackSelectionParameters = player.trackSelectionParameters.buildUpon().run {
             if (group == null) setTrackTypeDisabled(type, true)
             else setOverrideForType(TrackSelectionOverride(group.mediaTrackGroup, i)).setTrackTypeDisabled(type, false)
+            // The override only fits this stream; the language carries over to the next channel/episode.
+            if (language != null) { if (audio) setPreferredAudioLanguage(language) else setPreferredTextLanguage(language) }
+            this
         }.build()
+        prefs.edit().apply {
+            if (language != null) putString(if (audio) "audio" else "text", language)
+            if (!audio) putBoolean("textOff", group == null)
+        }.apply()
     }
     fun options(type: Int) = tracks.groups.filter { it.type == type }
         .flatMap { g -> (0 until g.length).filter { g.isTrackSupported(it) }.map { g to it } }
