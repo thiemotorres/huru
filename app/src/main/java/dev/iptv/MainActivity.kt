@@ -37,7 +37,10 @@ import androidx.compose.ui.draw.clip
 import androidx.tv.material3.*
 import coil.compose.AsyncImage
 import kotlinx.coroutines.android.awaitFrame
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
+import java.io.File
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
@@ -160,22 +163,38 @@ fun BrowseScreen(x: Xtream, onLogout: () -> Unit) {
         if (cat == FAVORITES) all.filter { it.id.toString() in favorites } else byCategory[cat].orEmpty()
 
     LaunchedEffect(x) {
-        runCatching { x.categories() to x.channels() }
-            .onSuccess { (cats, chans) ->
-                all = chans
-                byCategory = chans.groupBy { it.categoryId }
-                categories = cats.filter { byCategory[it.id] != null }
-                // Direkt mit dem zuletzt gesehenen Sender starten, falls es ihn noch gibt.
-                val lastCategory = lastPrefs.getString("category", null)
-                val last = channelsOf(lastCategory).indexOfFirst { it.id == lastPrefs.getInt("channel", -1) }
-                if (last >= 0) {
-                    selected = lastCategory
-                    playing = last
-                } else {
-                    selected = if (favorites.isNotEmpty()) FAVORITES else categories?.firstOrNull()?.id
-                }
+        // Listen sofort aus dem Cache zeigen, dann im Hintergrund vom Server erneuern.
+        val cache = File(context.cacheDir, "lists-${x.account.hashCode()}").apply { mkdirs() }
+        val catFile = File(cache, "categories.json")
+        val chanFile = File(cache, "streams.json")
+        var started = false
+
+        suspend fun show(catJson: String, chanJson: String) {
+            val (cats, chans) = withContext(Dispatchers.Default) { x.parseCategories(catJson) to x.parseChannels(chanJson) }
+            all = chans
+            byCategory = chans.groupBy { it.categoryId }
+            categories = cats.filter { byCategory[it.id] != null }
+            if (started) return
+            started = true
+            // Direkt mit dem zuletzt gesehenen Sender starten, falls es ihn noch gibt.
+            val lastCategory = lastPrefs.getString("category", null)
+            val last = channelsOf(lastCategory).indexOfFirst { it.id == lastPrefs.getInt("channel", -1) }
+            if (last >= 0) {
+                selected = lastCategory
+                playing = last
+            } else {
+                selected = if (favorites.isNotEmpty()) FAVORITES else categories?.firstOrNull()?.id
             }
-            .onFailure { error = it.message ?: "Laden fehlgeschlagen" }
+        }
+
+        withContext(Dispatchers.IO) { runCatching { catFile.readText() to chanFile.readText() }.getOrNull() }
+            ?.let { (c, s) -> runCatching { show(c, s) } }
+        runCatching { x.raw("get_live_categories") to x.raw("get_live_streams") }
+            .onSuccess { (c, s) ->
+                withContext(Dispatchers.IO) { catFile.writeText(c); chanFile.writeText(s) }
+                show(c, s)
+            }
+            .onFailure { if (!started) error = it.message ?: "Laden fehlgeschlagen" }
     }
 
     val loaded = categories

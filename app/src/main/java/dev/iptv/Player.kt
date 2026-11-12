@@ -22,6 +22,7 @@ import android.view.TextureView
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player as MediaPlayer
+import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
@@ -32,8 +33,11 @@ import java.util.Locale
 
 /** Vollbild-Player. Hoch/Runter (oder CH+/CH−) zappt innerhalb der Kategorie, OK zeigt Info, Zurück verlässt. */
 @Composable
+@androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class) // DefaultLoadControl
 fun Player(x: Xtream, channels: List<Channel>, start: Int, onChannel: (Channel) -> Unit, onExit: (Int) -> Unit) {
     val context = LocalContext.current
+    // Liste beim Start festhalten: eine Hintergrund-Aktualisierung soll nicht mitten im Schauen den Sender wechseln.
+    val channels = remember { channels }
     var index by remember { mutableIntStateOf(start) }
     var error by remember { mutableStateOf<String?>(null) }
     var epg by remember { mutableStateOf<List<Programme>>(emptyList()) }
@@ -42,7 +46,11 @@ fun Player(x: Xtream, channels: List<Channel>, start: Int, onChannel: (Channel) 
     val channel = channels[index]
 
     val player = remember {
-        ExoPlayer.Builder(context).build().apply {
+        // Live-TV: nach 1 s Puffer losspielen statt 2,5 s (schnelleres Starten und Zappen).
+        val loadControl = DefaultLoadControl.Builder()
+            .setBufferDurationsMs(15_000, 50_000, 1_000, 2_000)
+            .build()
+        ExoPlayer.Builder(context).setLoadControl(loadControl).build().apply {
             playWhenReady = true
             addListener(object : MediaPlayer.Listener {
                 override fun onPlayerError(e: PlaybackException) { error = e.errorCodeName }

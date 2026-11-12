@@ -37,13 +37,16 @@ class Xtream(val account: Account) {
         if (info?.optInt("auth") != 1) throw IOException("Login fehlgeschlagen")
     }
 
-    suspend fun categories(): List<Category> =
-        JSONArray(get("&action=get_live_categories")).objects().map {
+    /** Rohes JSON einer Listen-Action (z. B. get_live_streams), damit es sich unverändert cachen lässt. */
+    suspend fun raw(action: String): String = get("&action=$action")
+
+    fun parseCategories(json: String): List<Category> =
+        JSONArray(json).objects().map {
             Category(it.optString("category_id"), it.optString("category_name"))
         }
 
-    suspend fun channels(): List<Channel> =
-        JSONArray(get("&action=get_live_streams")).objects().map {
+    fun parseChannels(json: String): List<Channel> =
+        JSONArray(json).objects().map {
             Channel(
                 id = it.optInt("stream_id"),
                 num = it.optInt("num"),

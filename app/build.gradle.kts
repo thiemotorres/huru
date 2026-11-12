@@ -14,6 +14,15 @@ android {
         versionCode = 1
         versionName = "0.1"
     }
+    buildTypes {
+        release {
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"))
+            // ponytail: mit dem Debug-Schlüssel signiert, reicht zum Sideloaden. Eigener Keystore erst für einen Store.
+            signingConfig = signingConfigs.getByName("debug")
+        }
+    }
     buildFeatures { compose = true }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
