@@ -201,5 +201,7 @@ class Mockups {
         }
     }
 
+    @Test fun about() = shot { AboutScreen(header = { ModeSwitch(3, onMode = {}, focus = false) }, donate = true, version = "0.1.0") }
+
     @Test fun splash() = shot { SplashFrame(rise = 1f, fly = 1f, flap = 1f, word = 1f) }
 }

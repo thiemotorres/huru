@@ -18,6 +18,19 @@ adb install -r app/build/outputs/apk/release/app-release.apk
 - Always build and test the **release** variant before reporting performance – debug Compose is much slower.
 - Pure logic (parsing, text cleanup) gets a small JUnit test in `app/src/test`. `org.json` is available in tests as a real dependency.
 
+## Releases & signing
+
+- CI (`.github/workflows/ci.yml`) runs tests and a release build on every push/PR.
+- Tag `vX.Y.Z` and push it → `release.yml` publishes a signed `huru-X.Y.Z.apk` as a GitHub release and keeps the Amazon build (`-Pstore=amazon`, no Ko-fi QR) as an artifact. `versionCode` = workflow run number.
+- Release key: `~/.android/huru-release.jks` on the maintainer's Mac, referenced by the git-ignored `keystore.properties`; CI gets it from the `HURU_*` repository secrets. **Never commit keystores or passwords.** Losing the key means store updates are impossible – it must be backed up.
+- `-Pstore=amazon` sets `BuildConfig.DONATE = false` (Amazon's rules on external payments are unclear).
+
+## Store & screenshots
+
+- Mockup screenshots: `Mockups.kt` (Paparazzi, fictional data) → `./gradlew recordPaparazziDebug` → copy to `docs/screenshots/`.
+- Fictional artwork for mocks: `python3 tools/mock_assets.py`. Ko-fi QR drawable: `python3 tools/kofi_qr.py` (needs `segno`).
+- Amazon graphics: `python3 tools/store_assets.py` → `store/amazon/`; texts and checklist in `store/amazon/listing.md`.
+
 ## Testing on the device
 
 - The target is a Fire TV Stick 4K Max (Fire OS 8 / Android 11) reachable via `adb`.
@@ -35,6 +48,7 @@ adb install -r app/build/outputs/apk/release/app-release.apk
 | `Player.kt` | Live player (zapping, info overlay), shared player factory and video surface |
 | `Vod.kt` | Movies/series grid, search, continue watching, series detail, VOD player |
 | `Splash.kt` | Animated splash and brand colours |
+| `About.kt` | About page (version, license, Ko-fi QR outside the Amazon build) |
 | `Text.kt` | Search key and episode title cleanup |
 
 ## Conventions
@@ -54,7 +68,16 @@ Brand assets and rules live in `branding/` (see `branding/BRAND.md`). Colours in
 - Code: **PolyForm Noncommercial 1.0.0** (`LICENSE.md`) – *source-available*, not OSI open source. Never describe the project as "open source".
 - Name and logo are excluded from the license (see `branding/BRAND.md`).
 - Keep the `Required Notice:` line at the top of `LICENSE.md`.
-- Outside contributions need the contributor's agreement that the maintainer may also license them commercially – ask before merging any.
+- Outside contributions need the contributor's agreement that the maintainer may also license them commercially – this is the contribution license in `CONTRIBUTING.md`; PRs confirm it via the PR template checkbox.
+
+## Contributing
+
+The full rules are in `CONTRIBUTING.md` and apply to agents too. In short:
+
+- Huru is a **player only** – never add content sources, provider lists, playlists or links to specific streams.
+- No real provider names, URLs, credentials, channel logos or copyrighted artwork anywhere (code, tests, screenshots). Use the fictional mock data in `app/src/test`.
+- One focused change per PR; open an issue before bigger changes; no new dependencies without discussion.
+- UI changes: re-record mockups (`./gradlew recordPaparazziDebug`) and copy changed images to `docs/screenshots/`.
 
 ## Git
 

@@ -78,7 +78,7 @@ private fun SharedPreferences.save(a: Account?) = edit().apply {
 @Composable
 fun App(prefs: SharedPreferences) {
     var xtream by remember { mutableStateOf(prefs.account()?.let(::Xtream)) }
-    var mode by remember { mutableIntStateOf(0) } // 0 TV, 1 movies, 2 series
+    var mode by remember { mutableIntStateOf(0) } // 0 TV, 1 movies, 2 series, 3 about
     var switched by remember { mutableStateOf(false) } // after switching modes, focus the switcher instead of the list
     var autoplay by remember { mutableStateOf(true) } // auto-play the last channel only on app start
     val header = @Composable { ModeSwitch(mode, onMode = { mode = it; switched = true }, focus = switched) }
@@ -90,6 +90,7 @@ fun App(prefs: SharedPreferences) {
                 onAutoplayed = { autoplay = false },
                 onLogout = { prefs.save(null); xtream = null },
             )
+            3 -> AboutScreen(header)
             else -> VodScreen(x, series = mode == 2, header, autoFocus = !switched)
         }
     }
@@ -99,7 +100,7 @@ fun App(prefs: SharedPreferences) {
 fun ModeSwitch(mode: Int, onMode: (Int) -> Unit, focus: Boolean) {
     val requester = remember { FocusRequester() }
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        listOf("TV", "Movies", "Series").forEachIndexed { i, label ->
+        listOf("TV", "Movies", "Series", "About").forEachIndexed { i, label ->
             Surface(
                 onClick = { if (i != mode) onMode(i) },
                 modifier = if (i == mode) Modifier.focusRequester(requester) else Modifier,

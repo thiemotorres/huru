@@ -2,6 +2,10 @@
 
 **Huru** is a clean, ad-free IPTV player for Amazon Fire TV (Android TV). It plays **your own** Xtream Codes subscription – no ads, no tracking, no clutter. *Huru* means "free" in Swahili.
 
+<p align="center"><img src="docs/screenshots/live-guide.png" alt="Programme guide" width="49%"> <img src="docs/screenshots/movies.png" alt="Movies" width="49%"></p>
+<p align="center"><img src="docs/screenshots/player.png" alt="Player" width="49%"> <img src="docs/screenshots/series-detail.png" alt="Series" width="49%"></p>
+<p align="center"><sub>Screenshots use fictional channels and artwork.</sub></p>
+
 > **Note:** Huru does not provide any channels, movies or series and does not point to any provider. You need your own, legitimate subscription.
 
 ## Features
@@ -11,21 +15,32 @@
 - **Movies & series** as a poster grid with search, "Continue watching" and automatic next episode
 - **Built for the remote:** everything works with the D-pad; long-press OK for favourites or hiding categories
 
-## Build & install
+## Install
+
+Download the latest `huru-<version>.apk` from [Releases](https://github.com/thiemotorres/huru/releases) and sideload it:
+
+```sh
+adb connect <fire-tv-ip>:5555               # enable ADB debugging in the developer options first
+adb install -r huru-<version>.apk
+```
+
+## Build
 
 Requirements: JDK 17, Android SDK (platform 35).
 
 ```sh
-./gradlew assembleRelease
-adb connect <fire-tv-ip>:5555               # enable ADB debugging in the developer options first
-adb install -r app/build/outputs/apk/release/app-release.apk
+./gradlew testDebugUnitTest assembleRelease   # APK in app/build/outputs/apk/release/
 ```
 
-The release APK is signed with the debug key for sideloading.
+Without a release keystore (`keystore.properties`, see `AGENTS.md`) the APK is signed with your debug key. `-Pstore=amazon` builds the Amazon Appstore variant.
 
 ## Tech
 
 Kotlin, Jetpack Compose for TV, Media3 ExoPlayer, Coil. No other dependencies, no backend.
+
+## Contributing & support
+
+Contributions are welcome – please read [CONTRIBUTING.md](CONTRIBUTING.md) first. If Huru is useful to you, you can [buy me a coffee on Ko-fi](https://ko-fi.com/thiemotorres) ☕
 
 ## Brand
 

@@ -1,0 +1,26 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: gradle/actions/setup-gradle@v4 # also validates the Gradle wrapper
+      - name: Test & build
+        run: ./gradlew testDebugUnitTest assembleRelease
+      - uses: actions/upload-artifact@v4
+        with:
+          name: huru-apk
+          path: app/build/outputs/apk/release/app-release.apk
