@@ -64,4 +64,20 @@
     <string name="track_n">Track %1$d</string>
     <string name="tracks_hint">≡ Audio &amp; subtitles</string>
     <string name="track_forced">forced</string>
+    <string name="pin_enter">Enter PIN</string>
+    <string name="pin_new">Choose a new PIN</string>
+    <string name="pin_repeat">Repeat the PIN</string>
+    <string name="pin_wrong">Wrong PIN</string>
+    <string name="pin_mismatch">The PINs don’t match</string>
+    <string name="pin_help">▲▼ change digit · OK next</string>
+    <string name="locked_hint">🔒 Locked · press OK on the category to enter the PIN</string>
+    <string name="lock_add">Lock with PIN</string>
+    <string name="lock_remove">Remove lock</string>
+    <string name="category_hide">Hide category</string>
+    <string name="category_show">Show category</string>
+    <string name="parental_title">Parental lock</string>
+    <string name="parental_hint">Once a PIN is set, categories with adult names are locked automatically. Long-press a category to lock or unlock it.</string>
+    <string name="pin_set">Set PIN</string>
+    <string name="pin_change">Change PIN</string>
+    <string name="pin_remove">Remove PIN</string>
 </resources>

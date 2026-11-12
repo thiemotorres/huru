@@ -50,6 +50,7 @@ data class Playback(
     val resumeKey: String,
     val poster: String?,
     val following: List<Playback> = emptyList(),
+    val category: String? = null, // for the parental lock in "Continue watching"
 )
 
 data class Progress(val playback: Playback, val position: Long, val duration: Long, val updated: Long)
@@ -65,7 +66,7 @@ class ProgressStore(context: Context, source: Account) {
             return
         }
         val json = JSONObject()
-            .put("url", p.url).put("title", p.title).put("poster", p.poster ?: "")
+            .put("url", p.url).put("title", p.title).put("poster", p.poster ?: "").put("cat", p.category ?: "")
             .put("pos", position).put("dur", duration).put("t", System.currentTimeMillis())
         prefs.edit().putString(p.resumeKey, json.toString()).apply()
     }
@@ -79,7 +80,8 @@ class ProgressStore(context: Context, source: Account) {
             runCatching {
                 val o = JSONObject(value as String)
                 Progress(
-                    Playback(o.getString("url"), o.getString("title"), key, o.optString("poster").ifBlank { null }),
+                    // ponytail: entries saved before 0.3 have no category and stay visible when locked
+                    Playback(o.getString("url"), o.getString("title"), key, o.optString("poster").ifBlank { null }, category = o.optString("cat").ifBlank { null }),
                     o.getLong("pos"), o.getLong("dur"), o.getLong("t"),
                 )
             }.getOrNull()
@@ -112,6 +114,11 @@ fun VodScreen(x: Xtream, series: Boolean, header: @Composable () -> Unit, autoFo
     val pickedFocus = remember { FocusRequester() }
     val firstCategory = remember { FocusRequester() }
     val loadingFailed = stringResource(R.string.loading_failed)
+    val kind = if (series) "series" else "movie"
+    val lock = remember(x) { Lock(context, x.account) }
+    var menu by remember { mutableStateOf<Category?>(null) } // long-press menu
+    var gate by remember { mutableStateOf<(() -> Unit)?>(null) } // PIN prompt, runs the action on success
+    var lockUsed by remember { mutableStateOf(false) } // refocus the category only after the menu/PIN was open
 
     LaunchedEffect(series) {
         val actions =
@@ -138,7 +145,8 @@ fun VodScreen(x: Xtream, series: Boolean, header: @Composable () -> Unit, autoFo
         return
     }
     LaunchedEffect(Unit) { if (autoFocus) { awaitFrame(); runCatching { firstCategory.requestFocus() } } }
-    val inProgress = remember(playing) { store.list(prefix) } // re-read after watching
+    val closed = lock.closedIds(kind, loaded)
+    val inProgress = remember(playing, closed) { store.list(prefix).filter { it.playback.category !in closed } } // re-read after watching
     val searchLabel = stringResource(R.string.search)
     val continueLabel = stringResource(R.string.continue_watching)
     val cats = buildList {
@@ -146,25 +154,26 @@ fun VodScreen(x: Xtream, series: Boolean, header: @Composable () -> Unit, autoFo
         if (inProgress.isNotEmpty()) add(Category(CONTINUE, continueLabel))
         addAll(loaded)
     }
-    val all = remember(byCategory) { byCategory.values.flatten().map { it to searchKey(it.name) } }
+    val all = remember(byCategory, closed) { byCategory.filterKeys { it !in closed }.values.flatten().map { it to searchKey(it.name) } }
     val items = when (selected) {
         SEARCH -> remember(query, all) {
             val q = searchKey(query.trim())
             if (q.length < 2) emptyList() else all.filter { q in it.second }.map { it.first }.take(300)
         }
+        in closed -> emptyList()
         else -> byCategory[selected].orEmpty()
     }
     fun open(item: VodItem) {
         lastPicked = item.id
         if (series) detail = item
-        else playing = Playback(x.movieUrl(item), item.name, "movie-${item.id}", item.poster)
+        else playing = Playback(x.movieUrl(item), item.name, "movie-${item.id}", item.poster, category = item.categoryId)
     }
     val grid = rememberLazyGridState()
     LaunchedEffect(selected) { grid.scrollToItem(0) }
 
     Box(Modifier.fillMaxSize()) {
         Row(
-            Modifier.fillMaxSize().padding(24.dp).blockFocus(detail != null || playing != null),
+            Modifier.fillMaxSize().padding(24.dp).blockFocus(detail != null || playing != null || menu != null || gate != null),
             horizontalArrangement = Arrangement.spacedBy(24.dp),
         ) {
             Column(Modifier.width(260.dp)) {
@@ -172,9 +181,13 @@ fun VodScreen(x: Xtream, series: Boolean, header: @Composable () -> Unit, autoFo
                 Spacer(Modifier.height(12.dp))
                 LazyColumn(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     items(cats, key = { it.id }) { cat ->
+                        val special = cat.id == SEARCH || cat.id == CONTINUE
                         CategoryItem(
                             cat,
                             selected = cat.id == selected,
+                            locked = !special && lock.isLocked(kind, cat),
+                            onClick = { if (cat.id in closed) { lockUsed = true; gate = {} } },
+                            onLongClick = { if (!special) { lockUsed = true; menu = cat } },
                             modifier = Modifier
                                 .then(if (cat.id == selected) Modifier.focusRequester(firstCategory) else Modifier)
                                 .onFocusChanged { if (it.isFocused) selected = cat.id },
@@ -183,6 +196,7 @@ fun VodScreen(x: Xtream, series: Boolean, header: @Composable () -> Unit, autoFo
                 }
             }
             Column(Modifier.weight(1f)) {
+            if (selected in closed) LockedHint()
             if (selected == SEARCH) {
                 Field(stringResource(R.string.search_hint), query, imeAction = ImeAction.Search) { query = it }
                 Spacer(Modifier.height(12.dp))
@@ -216,12 +230,25 @@ fun VodScreen(x: Xtream, series: Boolean, header: @Composable () -> Unit, autoFo
                 x, s,
                 blocked = playing != null,
                 onPlay = { ep, episodes ->
-                    fun pb(e: Episode) = Playback(x.episodeUrl(e), "${s.name} · S${e.season} E${e.num}", "ep-${e.id}", s.poster)
+                    fun pb(e: Episode) = Playback(x.episodeUrl(e), "${s.name} · S${e.season} E${e.num}", "ep-${e.id}", s.poster, category = s.categoryId)
                     playing = pb(ep).copy(following = episodes.drop(episodes.indexOf(ep) + 1).map(::pb))
                 },
                 onBack = { detail = null },
             )
         }
+        menu?.let { cat ->
+            val isLocked = lock.isLocked(kind, cat)
+            CategoryMenu(
+                cat.label, isLocked, hidden = null, onToggleHidden = {},
+                onToggleLock = {
+                    menu = null
+                    val action = { lock.setLocked(kind, cat, !isLocked) }
+                    if (lock.pin == null || isLocked && !Session.open) gate = action else action()
+                },
+                onClose = { menu = null },
+            )
+        }
+        gate?.let { action -> PinGate(lock, onOk = { action(); gate = null }, onCancel = { gate = null }) }
         playing?.let { p ->
             key(p.resumeKey) { // new episode → new player
                 VodPlayer(
@@ -232,6 +259,10 @@ fun VodScreen(x: Xtream, series: Boolean, header: @Composable () -> Unit, autoFo
                 )
             }
         }
+    }
+    // Back to the category after the lock menu / PIN prompt.
+    LaunchedEffect(menu == null && gate == null) {
+        if (menu == null && gate == null && lockUsed) { awaitFrame(); runCatching { firstCategory.requestFocus() } }
     }
     // Return focus to the last picked poster when detail/player close.
     LaunchedEffect(detail == null && playing == null) {
@@ -245,6 +276,7 @@ fun CategoryItem(
     selected: Boolean,
     modifier: Modifier = Modifier,
     dim: Boolean = false,
+    locked: Boolean = false,
     onClick: () -> Unit = {},
     onLongClick: (() -> Unit)? = null,
 ) {
@@ -258,6 +290,7 @@ fun CategoryItem(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
+                if (locked) Text("🔒")
                 cat.prefix?.let { Badge(it) }
                 Text(cat.label, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }

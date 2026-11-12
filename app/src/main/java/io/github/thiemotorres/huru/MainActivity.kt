@@ -48,6 +48,11 @@ import java.io.File
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
+    override fun onStop() {
+        super.onStop()
+        Session.open = false // the parental lock closes again when Huru leaves the screen
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
@@ -267,10 +272,16 @@ fun BrowseScreen(
     var playing by remember { mutableStateOf<Int?>(null) } // index within the current category
     var returnTo by remember { mutableStateOf<Int?>(null) }
     val epg = remember { mutableStateMapOf<Int, List<Programme>>() } // stream_id -> programmes, cached for the session
-    fun channelsOf(cat: String?) =
+    val lock = remember(x) { Lock(context, x.account) }
+    var menu by remember { mutableStateOf<Category?>(null) } // long-press menu
+    var gate by remember { mutableStateOf<(() -> Unit)?>(null) } // PIN prompt, runs the action on success
+    var focusCat by remember { mutableStateOf<String?>(null) } // category to refocus after menu/PIN
+    // Locked categories show no channels, also not via favourites or recently watched.
+    fun channelsOf(cat: String?, closed: Set<String>) =
         when (cat) {
-            FAVORITES -> all.filter { it.id.toString() in favorites }
-            RECENT -> all.associateBy { it.id }.let { byId -> recent.mapNotNull { byId[it] } }
+            in closed -> emptyList()
+            FAVORITES -> all.filter { it.id.toString() in favorites && it.categoryId !in closed }
+            RECENT -> all.associateBy { it.id }.let { byId -> recent.mapNotNull { byId[it] }.filter { it.categoryId !in closed } }
             else -> byCategory[cat].orEmpty()
         }
     val loadingFailed = stringResource(R.string.loading_failed)
@@ -290,7 +301,7 @@ fun BrowseScreen(
                     onAutoplayed()
                     // Start straight into the last watched channel if it still exists.
                     val lastCategory = lastPrefs.getString("category", null)
-                    val last = channelsOf(lastCategory).indexOfFirst { it.id == lastPrefs.getInt("channel", -1) }
+                    val last = channelsOf(lastCategory, lock.closedIds("live", cats)).indexOfFirst { it.id == lastPrefs.getInt("channel", -1) }
                     if (last >= 0) {
                         selected = lastCategory
                         playing = last
@@ -320,8 +331,13 @@ fun BrowseScreen(
         addAll(if (showHidden) loaded else loaded.filter { it.id !in hidden })
         if (hiddenCount > 0) add(Category(TOGGLE_HIDDEN, hiddenLabel))
     }
-    val channels = remember(selected, all, favorites, recent) { channelsOf(selected) }
+    val closed = lock.closedIds("live", loaded)
+    val channels = remember(selected, all, favorites, recent, closed) { channelsOf(selected, closed) }
     val firstCategory = remember { FocusRequester() }
+    val catFocus = remember { FocusRequester() }
+    LaunchedEffect(menu == null && gate == null) {
+        if (menu == null && gate == null && focusCat != null) { awaitFrame(); runCatching { catFocus.requestFocus() } }
+    }
     val channelFocus = remember { FocusRequester() }
     val channelList = rememberLazyListState()
 
@@ -345,10 +361,15 @@ fun BrowseScreen(
                             cat,
                             selected = cat.id == selected,
                             dim = cat.id in hidden || cat.id == TOGGLE_HIDDEN,
-                            onClick = { if (cat.id == TOGGLE_HIDDEN) showHidden = !showHidden },
-                            onLongClick = { if (!special) toggleHidden(cat) }, // hide/unhide category
+                            locked = !special && lock.isLocked("live", cat),
+                            onClick = {
+                                if (cat.id == TOGGLE_HIDDEN) showHidden = !showHidden
+                                else if (cat.id in closed) { focusCat = cat.id; gate = {} }
+                            },
+                            onLongClick = { if (!special) { focusCat = cat.id; menu = cat } },
                             modifier = Modifier
                                 .then(if (i == 0) Modifier.focusRequester(firstCategory) else Modifier)
+                                .then(if (cat.id == focusCat) Modifier.focusRequester(catFocus) else Modifier)
                                 .onFocusChanged { if (it.isFocused && cat.id != TOGGLE_HIDDEN) selected = cat.id },
                         )
                     }
@@ -358,6 +379,7 @@ fun BrowseScreen(
             val start = guideStart(now)
             Column(Modifier.weight(1f)) {
                 GuideHeader(start, now)
+                if (selected in closed) LockedHint()
                 LazyColumn(state = channelList, verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     itemsIndexed(channels, key = { _, c -> c.id }) { i, ch ->
                         LaunchedEffect(ch.id, start) {
@@ -395,10 +417,25 @@ fun BrowseScreen(
                     val id = channels.getOrNull(last)?.id
                     recent = readRecent()
                     playing = null
-                    returnTo = channelsOf(selected).indexOfFirst { it.id == id }.takeIf { it >= 0 } ?: last
+                    returnTo = channelsOf(selected, closed).indexOfFirst { it.id == id }.takeIf { it >= 0 } ?: last
                 },
             )
         }
+        menu?.let { cat ->
+            val isLocked = lock.isLocked("live", cat)
+            CategoryMenu(
+                cat.label, isLocked, hidden = cat.id in hidden,
+                onToggleHidden = { toggleHidden(cat); menu = null },
+                onToggleLock = {
+                    menu = null
+                    // Locking needs a PIN to exist; unlocking needs the PIN unless the session is already open.
+                    val action = { lock.setLocked("live", cat, !isLocked) }
+                    if (lock.pin == null || isLocked && !Session.open) gate = action else action()
+                },
+                onClose = { menu = null },
+            )
+        }
+        gate?.let { action -> PinGate(lock, onOk = { action(); gate = null }, onCancel = { gate = null }) }
     }
 }
 

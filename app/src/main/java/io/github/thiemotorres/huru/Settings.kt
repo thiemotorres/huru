@@ -10,6 +10,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
@@ -22,6 +23,7 @@ import kotlinx.coroutines.launch
 
 /** Focus target for the "add source" button. */
 const val ADD_SOURCE = "__add_source"
+private const val PIN_BUTTON = "__pin"
 
 /** Settings: manage sources (switch, edit, delete, add) next to the about panel. */
 @Composable
@@ -35,8 +37,19 @@ fun SettingsScreen(
     onSave: (Account) -> Unit,
     onDelete: (Account) -> Unit,
 ) {
+    val context = LocalContext.current
     var form by remember { mutableStateOf<Account?>(null) } // source being edited
     var adding by remember { mutableStateOf(false) }
+    val lock = remember(active) { Lock(context, active) }
+    var pinAction by remember { mutableStateOf<String?>(null) } // "change" or "remove"
+    pinAction?.let { action ->
+        PinGate(
+            lock, change = action == "change",
+            onOk = { if (action == "remove") lock.savePin(null); pinAction = null; onFocusId(PIN_BUTTON) },
+            onCancel = { pinAction = null; onFocusId(PIN_BUTTON) },
+        )
+        return
+    }
     if (adding || form != null) {
         SourceForm(
             initial = form,
@@ -66,6 +79,18 @@ fun SettingsScreen(
                     item {
                         Button(onClick = { adding = true }, Modifier.padding(top = 8.dp).focusRequester(requester(ADD_SOURCE))) {
                             Text(stringResource(R.string.source_add))
+                        }
+                    }
+                    item {
+                        Column(Modifier.padding(top = 32.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text(stringResource(R.string.parental_title), style = MaterialTheme.typography.titleLarge)
+                            Text(stringResource(R.string.parental_hint), color = Color.White.copy(alpha = 0.7f))
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                OutlinedButton(onClick = { pinAction = "change" }, Modifier.focusRequester(requester(PIN_BUTTON))) {
+                                    Text(stringResource(if (lock.pin == null) R.string.pin_set else R.string.pin_change))
+                                }
+                                if (lock.pin != null) OutlinedButton(onClick = { pinAction = "remove" }) { Text(stringResource(R.string.pin_remove)) }
+                            }
                         }
                     }
                 }

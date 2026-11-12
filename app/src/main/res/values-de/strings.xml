@@ -63,4 +63,20 @@
     <string name="track_n">Spur %1$d</string>
     <string name="tracks_hint">≡ Audio &amp; Untertitel</string>
     <string name="track_forced">erzwungen</string>
+    <string name="pin_enter">PIN eingeben</string>
+    <string name="pin_new">Neue PIN festlegen</string>
+    <string name="pin_repeat">PIN wiederholen</string>
+    <string name="pin_wrong">Falsche PIN</string>
+    <string name="pin_mismatch">Die PINs stimmen nicht überein</string>
+    <string name="pin_help">▲▼ Ziffer ändern · OK weiter</string>
+    <string name="locked_hint">🔒 Gesperrt · OK auf der Kategorie, um die PIN einzugeben</string>
+    <string name="lock_add">Mit PIN sperren</string>
+    <string name="lock_remove">Sperre aufheben</string>
+    <string name="category_hide">Kategorie ausblenden</string>
+    <string name="category_show">Kategorie einblenden</string>
+    <string name="parental_title">Kindersicherung</string>
+    <string name="parental_hint">Sobald eine PIN festgelegt ist, werden Erwachsenen-Kategorien automatisch gesperrt. Lange auf eine Kategorie drücken, um sie zu sperren oder zu entsperren.</string>
+    <string name="pin_set">PIN festlegen</string>
+    <string name="pin_change">PIN ändern</string>
+    <string name="pin_remove">PIN entfernen</string>
 </resources>
