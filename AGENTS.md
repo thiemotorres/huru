@@ -60,6 +60,7 @@ adb install -r app/build/outputs/apk/release/app-release.apk
 | `Vod.kt` | Movies/series grid, search, continue watching, series detail, VOD player |
 | `Splash.kt` | Animated splash and brand colours |
 | `Sources.kt` | Saved sources (multiple Xtream logins), migration, per-source preferences |
+| `Lock.kt` | Parental lock: device-wide PIN, per-source locked categories, adult-name auto-lock, PIN dialog |
 | `Settings.kt` | Settings page (manage sources) and the source form incl. first-run setup with demo |
 | `About.kt` | About panel (version, license, Ko-fi QR outside the Amazon build) |
 | `Text.kt` | Search key and episode title cleanup |
