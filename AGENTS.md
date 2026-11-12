@@ -53,7 +53,8 @@ adb install -r app/build/outputs/apk/release/app-release.apk
 
 | File | Responsibility |
 |---|---|
-| `Xtream.kt` | Xtream Codes API client, JSON parsing, list cache (`loadLists`) |
+| `Xtream.kt` | `Provider` interface (what live TV needs from a source), Xtream Codes API client, JSON parsing, list cache (`cachedLists`) |
+| `M3u.kt` | M3U playlist source: playlist parser, XMLTV guide (SAX, gzip), live TV only – no catch-up, movies or series |
 | `MainActivity.kt` | App shell, login, mode switch (TV/Movies/Series), live channel browser |
 | `Guide.kt` | Channel rows with the 2-hour programme guide, catch-up list (⟲ channels, Right) |
 | `Player.kt` | Live player (zapping, info overlay), shared player factory and video surface |

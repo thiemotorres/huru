@@ -63,7 +63,7 @@ import java.util.Locale
 @Composable
 @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class) // DefaultLoadControl
 fun Player(
-    x: Xtream,
+    x: Provider,
     channels: List<Channel>,
     start: Int,
     onChannel: (Channel) -> Unit,
@@ -102,8 +102,7 @@ fun Player(
             addListener(object : MediaPlayer.Listener {
                 override fun onPlayerError(e: PlaybackException) {
                     when {
-                        // Some servers only deliver HLS: retry once as .m3u8, then stay on HLS.
-                        x.liveExt == "ts" -> { x.liveExt = "m3u8"; play(this@apply) }
+                        x.liveFallback() -> play(this@apply) // e.g. Xtream servers that only deliver HLS
                         reconnect.retry { play(this@apply) } -> Unit
                         else -> error = describe(e)
                     }

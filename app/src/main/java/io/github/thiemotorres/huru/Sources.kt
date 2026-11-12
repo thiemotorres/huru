@@ -55,8 +55,12 @@ fun hostOf(server: String): String =
 
 fun encodeSources(sources: List<Account>): String = JSONArray(sources.map {
     JSONObject().put("id", it.id).put("name", it.name).put("server", it.server).put("user", it.user).put("pass", it.pass)
+        .put("type", it.type).put("epg", it.epg)
 }).toString()
 
 fun decodeSources(json: String): List<Account> = JSONArray(json).objects().map {
-    Account(it.getString("server"), it.optString("user"), it.optString("pass"), it.optString("id"), it.optString("name"))
+    Account(
+        it.getString("server"), it.optString("user"), it.optString("pass"), it.optString("id"), it.optString("name"),
+        type = it.optString("type", XTREAM), epg = it.optString("epg"),
+    )
 }

@@ -87,7 +87,8 @@ fun App() {
     fun update(list: List<Account>, newActive: String?) {
         sources = list; activeId = newActive; store.save(list, newActive)
     }
-    val header = @Composable { ModeSwitch(mode, onMode = { mode = it; switched = true }, focus = switched, onFocused = { switched = false }) }
+    val vod = active?.type != M3U // M3U sources have live TV only
+    val header = @Composable { ModeSwitch(mode, vod, onMode = { mode = it; switched = true }, focus = switched, onFocused = { switched = false }) }
 
     if (active == null) {
         // First run (or all sources deleted): set up a source or try the demo.
@@ -95,7 +96,7 @@ fun App() {
         return
     }
     key(active) { // switching or editing the active source rebuilds everything for it
-        val x = remember { Xtream(active) }
+        val x = remember { provider(active) }
         when (mode) {
             0 -> BrowseScreen(
                 x, header, autoFocus = !switched, autoplay = autoplay,
@@ -120,16 +121,17 @@ fun App() {
                 },
             )
             // key: movies and series must not share state (selected category, continue-watching list, …)
-            else -> key(mode) { VodScreen(x, series = mode == 2, header, autoFocus = !switched) }
+            else -> (x as? Xtream)?.let { key(mode) { VodScreen(it, series = mode == 2, header, autoFocus = !switched) } }
         }
     }
 }
 
 @Composable
-fun ModeSwitch(mode: Int, onMode: (Int) -> Unit, focus: Boolean, onFocused: () -> Unit = {}) {
+fun ModeSwitch(mode: Int, vod: Boolean = true, onMode: (Int) -> Unit, focus: Boolean, onFocused: () -> Unit = {}) {
     val requester = remember { FocusRequester() }
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         listOf(R.string.mode_tv, R.string.mode_movies, R.string.mode_series, R.string.mode_settings).map { stringResource(it) }.forEachIndexed { i, label ->
+            if (!vod && (i == 1 || i == 2)) return@forEachIndexed
             Surface(
                 onClick = { if (i != mode) onMode(i) },
                 modifier = if (i == mode) Modifier.focusRequester(requester) else Modifier,
@@ -250,7 +252,7 @@ fun Field(
 
 @Composable
 fun BrowseScreen(
-    x: Xtream,
+    x: Provider,
     header: @Composable () -> Unit,
     autoFocus: Boolean,
     autoplay: Boolean,
@@ -314,12 +316,11 @@ fun BrowseScreen(
         var started = false
         runCatching {
             // Cache first, then server.
-            x.loadLists(context.cacheDir, listOf("get_live_categories", "get_live_streams")) { (catJson, chanJson) ->
-                val (cats, chans) = withContext(Dispatchers.Default) { x.parseCategories(catJson) to x.parseChannels(chanJson) }
+            x.loadLive(context.cacheDir) { cats, chans ->
                 all = chans
                 byCategory = chans.groupBy { it.categoryId }
                 categories = cats.filter { byCategory[it.id] != null }
-                if (started) return@loadLists
+                if (started) return@loadLive
                 started = true
                 if (autoplay) {
                     onAutoplayed()
@@ -329,7 +330,7 @@ fun BrowseScreen(
                     if (last >= 0) {
                         selected = lastCategory
                         playing = last
-                        return@loadLists
+                        return@loadLive
                     }
                 }
                 selected = if (favorites.isNotEmpty()) FAVORITES else categories?.firstOrNull()?.id

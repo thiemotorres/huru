@@ -124,7 +124,9 @@ private fun SourceRow(
 ) {
     var confirm by remember { mutableStateOf(false) }
     // Asked fresh each time: renewing an account moves the date. No date if unlimited or unreachable.
-    val expiry by produceState<Long?>(null, source) { value = runCatching { Xtream(source).login() }.getOrNull() }
+    val expiry by produceState<Long?>(null, source) {
+        if (source.type == XTREAM) value = runCatching { Xtream(source).login() }.getOrNull() // M3U knows no expiry
+    }
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         ListItem(
             selected = active,
@@ -132,7 +134,8 @@ private fun SourceRow(
             headlineContent = { Text(source.name.ifBlank { hostOf(source.server) }, maxLines = 1, overflow = TextOverflow.Ellipsis) },
             supportingContent = {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("${hostOf(source.server)} · ${source.user}", Modifier.weight(1f, fill = false), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    val detail = if (source.type == M3U) stringResource(R.string.source_type_m3u) else source.user
+                    Text("${hostOf(source.server)} · $detail", Modifier.weight(1f, fill = false), maxLines = 1, overflow = TextOverflow.Ellipsis)
                     expiry?.let {
                         val date = java.text.DateFormat.getDateInstance(java.text.DateFormat.MEDIUM).format(java.util.Date(it))
                         val expired = it < System.currentTimeMillis()
@@ -163,6 +166,8 @@ fun SourceForm(initial: Account?, onSave: (Account) -> Unit, onCancel: (() -> Un
     var server by remember { mutableStateOf(initial?.server.orEmpty()) }
     var user by remember { mutableStateOf(initial?.user.orEmpty()) }
     var pass by remember { mutableStateOf(initial?.pass.orEmpty()) }
+    var type by remember { mutableStateOf(initial?.type ?: XTREAM) }
+    var epg by remember { mutableStateOf(initial?.epg.orEmpty()) }
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
@@ -177,7 +182,7 @@ fun SourceForm(initial: Account?, onSave: (Account) -> Unit, onCancel: (() -> Un
     fun submit(candidate: Account) {
         busy = true; error = null
         scope.launch {
-            runCatching { Xtream(candidate).login() }
+            runCatching { provider(candidate).login() }
                 .onSuccess {
                     // Otherwise the IME session stays open and Fire OS re-shows the keyboard over the player.
                     keyboard?.hide()
@@ -199,12 +204,24 @@ fun SourceForm(initial: Account?, onSave: (Account) -> Unit, onCancel: (() -> Un
         )
         if (onCancel == null) Text(stringResource(R.string.setup_hint), color = Color.White.copy(alpha = 0.7f))
         Box(Modifier.focusRequester(first)) { Field(stringResource(R.string.source_name), name) { name = it } }
-        Field(stringResource(R.string.login_server), server, KeyboardType.Uri) { server = it }
-        Field(stringResource(R.string.login_user), user) { user = it }
-        Field(stringResource(R.string.login_password), pass, KeyboardType.Password, password = true) { pass = it }
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            listOf(XTREAM to R.string.source_type_xtream, M3U to R.string.source_type_m3u).forEach { (t, label) ->
+                // Same component for both states: swapping it would drop the focus into the name field.
+                OutlinedButton(onClick = { type = t; error = null }) { Text((if (t == type) "✓ " else "") + stringResource(label)) }
+            }
+        }
+        if (type == M3U) {
+            Field(stringResource(R.string.login_playlist), server, KeyboardType.Uri) { server = it }
+            Field(stringResource(R.string.login_epg), epg, KeyboardType.Uri) { epg = it }
+        } else {
+            Field(stringResource(R.string.login_server), server, KeyboardType.Uri) { server = it }
+            Field(stringResource(R.string.login_user), user) { user = it }
+            Field(stringResource(R.string.login_password), pass, KeyboardType.Password, password = true) { pass = it }
+        }
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.padding(top = 6.dp)) {
             Button(enabled = !busy && server.isNotBlank(), onClick = {
-                submit(Account(server.trim(), user.trim(), pass, id = initial?.id ?: newSourceId(), name = name.trim().ifBlank { hostOf(server) }))
+                val base = Account(server.trim(), "", "", id = initial?.id ?: newSourceId(), name = name.trim().ifBlank { hostOf(server) }, type = type)
+                submit(if (type == M3U) base.copy(epg = epg.trim()) else base.copy(user = user.trim(), pass = pass))
             }) { Text(stringResource(if (busy) R.string.login_connecting else if (initial == null) R.string.login_submit else R.string.source_save)) }
             if (initial == null) {
                 OutlinedButton(enabled = !busy, onClick = { submit(DEMO_SOURCE.copy(id = newSourceId())) }) { Text(stringResource(R.string.try_demo)) }

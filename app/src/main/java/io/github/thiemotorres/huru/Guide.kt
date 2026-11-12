@@ -157,7 +157,7 @@ fun GuideRow(
  */
 @Composable
 @OptIn(ExperimentalComposeUiApi::class) // focusProperties exit
-fun ArchivePanel(x: Xtream, channel: Channel, active: Boolean, onPlay: (Programme) -> Unit, onClose: () -> Unit, modifier: Modifier = Modifier) {
+fun ArchivePanel(x: Provider, channel: Channel, active: Boolean, onPlay: (Programme) -> Unit, onClose: () -> Unit, modifier: Modifier = Modifier) {
     var items by remember { mutableStateOf<List<Programme>?>(null) }
     LaunchedEffect(channel) { items = runCatching { x.archive(channel) }.getOrDefault(emptyList()) }
     var picked by remember { mutableIntStateOf(0) }

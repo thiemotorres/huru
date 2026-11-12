@@ -11,8 +11,35 @@ import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URL
 
-/** One Xtream source. id "" is the source migrated from the single-account era (keeps its data file names). */
-data class Account(val server: String, val user: String, val pass: String, val id: String = "", val name: String = "")
+/**
+ * One source. id "" is the source migrated from the single-account era (keeps its data file names).
+ * Type [M3U]: [server] is the playlist URL and [epg] an optional XMLTV URL; user and pass stay empty.
+ */
+data class Account(
+    val server: String, val user: String, val pass: String, val id: String = "", val name: String = "",
+    val type: String = XTREAM, val epg: String = "",
+)
+
+const val XTREAM = "xtream"
+const val M3U = "m3u"
+
+/** What the live TV screens need from a source. Catch-up, movies and series exist only for Xtream. */
+interface Provider {
+    val account: Account
+    /** Checks the source; returns the account's expiry (epoch ms) if known. Throws if it is unusable. */
+    suspend fun login(): Long?
+    /** Categories and channels: the cached state first (if any), then the fresh one; server errors are thrown. */
+    suspend fun loadLive(cacheDir: File, show: suspend (List<Category>, List<Channel>) -> Unit)
+    /** The running programme and the next ones. */
+    suspend fun shortEpg(channel: Channel, limit: Int = 2): List<Programme>
+    fun streamUrl(channel: Channel): String
+    /** A live stream failed: true if the provider switched to something worth retrying. */
+    fun liveFallback(): Boolean = false
+    suspend fun archive(channel: Channel, now: Long = System.currentTimeMillis()): List<Programme> = emptyList()
+    fun archiveUrl(channel: Channel, p: Programme): String? = null
+}
+
+fun provider(account: Account): Provider = if (account.type == M3U) M3u(account) else Xtream(account)
 data class Category(val id: String, val name: String) {
     private val match = COUNTRY_PREFIX.matchEntire(name)
         ?: SPACED_PREFIX.matchEntire(name)?.takeIf { it.groupValues[1] in COUNTRY_CODES }
@@ -21,8 +48,14 @@ data class Category(val id: String, val name: String) {
     val label: String = match?.groupValues?.get(2) ?: name
 }
 
-/** archiveDays > 0: the provider keeps recordings (catch-up) for that many days. */
-data class Channel(val id: Int, val num: Int, val name: String, val logo: String?, val categoryId: String, val archiveDays: Int = 0) {
+/**
+ * archiveDays > 0: the provider keeps recordings (catch-up) for that many days.
+ * [url] and [epgId] only for M3U channels (the stream address and the XMLTV channel id).
+ */
+data class Channel(
+    val id: Int, val num: Int, val name: String, val logo: String?, val categoryId: String, val archiveDays: Int = 0,
+    val url: String? = null, val epgId: String? = null,
+) {
     /** Quality suffix at the end of the name: "SPORT TV 1 FHD" → "FHD". */
     val quality: String? = QUALITY_SUFFIX.find(name)?.groupValues?.get(1)?.uppercase()
     val label: String = name.replace(QUALITY_SUFFIX, "").trim().ifEmpty { name }
@@ -60,7 +93,7 @@ data class VodItem(val id: Int, val name: String, val poster: String?, val categ
 data class Episode(val id: String, val season: Int, val num: Int, val title: String, val ext: String, val plot: String?)
 
 /** Xtream Codes player_api. There are no official docs; fields arrive as string or number depending on the panel. */
-class Xtream(val account: Account) {
+class Xtream(override val account: Account) : Provider {
     private val base = account.server.trim().trimEnd('/').let { if ("://" in it) it else "http://$it" }
     private val auth = "username=${Uri.encode(account.user)}&password=${Uri.encode(account.pass)}"
 
@@ -77,7 +110,7 @@ class Xtream(val account: Account) {
     }
 
     /** Checks the login; returns the account's expiry (epoch ms), null if unlimited or not reported. */
-    suspend fun login(): Long? {
+    override suspend fun login(): Long? {
         val info = JSONObject(get("")).optJSONObject("user_info")
         if (info?.optInt("auth") != 1) throw IOException("Login failed")
         return expiryOf(info)
@@ -103,11 +136,17 @@ class Xtream(val account: Account) {
             )
         }
 
+    override suspend fun loadLive(cacheDir: File, show: suspend (List<Category>, List<Channel>) -> Unit) =
+        loadLists(cacheDir, listOf("get_live_categories", "get_live_streams")) { (cats, chans) ->
+            val (c, ch) = withContext(Dispatchers.Default) { parseCategories(cats) to parseChannels(chans) }
+            show(c, ch)
+        }
+
     /**
      * Current and next programmes. Some panels ignore the limit and start hours in the past, so ended ones are
      * dropped; if too few are left, the full table (a few days) fills in.
      */
-    suspend fun shortEpg(channel: Channel, limit: Int = 2): List<Programme> {
+    override suspend fun shortEpg(channel: Channel, limit: Int): List<Programme> {
         val now = System.currentTimeMillis()
         val short = upcoming(epg(get("&action=get_short_epg&stream_id=${channel.id}&limit=$limit")), now, limit)
         if (short.size >= limit) return short
@@ -163,21 +202,23 @@ class Xtream(val account: Account) {
      * Recorded programmes of a catch-up channel, newest first, including the running one (plays from its start up to now).
      * Not filtered by has_archive: panels set it hours late.
      */
-    suspend fun archive(channel: Channel, now: Long = System.currentTimeMillis()): List<Programme> =
+    override suspend fun archive(channel: Channel, now: Long): List<Programme> =
         epg(get("&action=get_simple_data_table&stream_id=${channel.id}"))
             .filter { it.start <= now && it.start >= now - channel.archiveDays * 86_400_000L && it.serverStart != null }
             .sortedByDescending { it.start }
 
-    fun archiveUrl(channel: Channel, p: Programme): String? {
+    override fun archiveUrl(channel: Channel, p: Programme): String? {
         val time = p.serverStart?.let(::archiveTime) ?: return null
         val minutes = ((p.end - p.start) / 60_000).coerceAtLeast(1)
         return "$base/timeshift/${Uri.encode(account.user)}/${Uri.encode(account.pass)}/$minutes/$time/${channel.id}.ts"
     }
 
-    /** Live format: MPEG-TS first; switches to HLS for the rest of the session if a TS stream fails (see Player). */
-    @Volatile var liveExt = "ts"
+    /** Live format: MPEG-TS first; switches to HLS for the rest of the session if a TS stream fails. */
+    @Volatile private var liveExt = "ts"
 
-    fun streamUrl(channel: Channel) =
+    override fun liveFallback(): Boolean = (liveExt == "ts").also { if (it) liveExt = "m3u8" }
+
+    override fun streamUrl(channel: Channel) =
         "$base/live/${Uri.encode(account.user)}/${Uri.encode(account.pass)}/${channel.id}.$liveExt"
 }
 
@@ -204,12 +245,18 @@ fun parseEpisodes(json: String): List<Episode> {
 }
 
 /** Passes the cached state (if any) to [show], then the fresh server state; server errors are thrown. */
-suspend fun Xtream.loadLists(cacheDir: File, actions: List<String>, show: suspend (List<String>) -> Unit) {
+suspend fun Xtream.loadLists(cacheDir: File, actions: List<String>, show: suspend (List<String>) -> Unit) =
+    cachedLists(cacheDir, account, actions, { raw(it) }, show)
+
+/** Cache first, then [fetch] each name and store it; used for Xtream lists and M3U playlists. */
+suspend fun cachedLists(
+    cacheDir: File, account: Account, names: List<String>, fetch: suspend (String) -> String, show: suspend (List<String>) -> Unit,
+) {
     val dir = File(cacheDir, "lists-${account.hashCode()}").apply { mkdirs() }
-    val files = actions.map { File(dir, "$it.json") }
+    val files = names.map { File(dir, "$it.json") }
     withContext(Dispatchers.IO) { runCatching { files.map { it.readText() } }.getOrNull() }
         ?.let { runCatching { show(it) } }
-    val fresh = actions.map { raw(it) }
+    val fresh = names.map { fetch(it) }
     withContext(Dispatchers.IO) { files.zip(fresh).forEach { (f, s) -> f.writeText(s) } }
     show(fresh)
 }

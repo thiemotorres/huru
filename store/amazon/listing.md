@@ -26,17 +26,17 @@ Free, no in-app items. Countries: all (or the ones you want). Release date: as s
 ## 3. Description
 
 **Short description:**
-A clean, ad-free IPTV player for your own Xtream Codes subscription. Huru provides no channels or content.
+A clean, ad-free IPTV player for your own Xtream Codes subscription or M3U playlist. Huru provides no channels or content.
 
 **Long description:**
-Huru is a calm, fast and ad-free player for IPTV services that use the Xtream Codes API. Sign in with the details from your own provider – or try the built-in demo with free, legal test content – and watch live TV, movies and series, built for the Fire TV remote from the ground up.
+Huru is a calm, fast and ad-free player for IPTV services that use the Xtream Codes API or an M3U playlist. Sign in with the details from your own provider – or try the built-in demo with free, legal test content – and watch live TV, movies and series, built for the Fire TV remote from the ground up.
 
 • Live TV with a programme guide right in the channel list
 • Fast zapping with Up/Down and an info overlay
 • Starts straight into the last channel you watched
 • Favourites and hideable categories
 • Movies and series with search, "Continue watching" and automatic next episode
-• Several sources: add and switch between logins
+• Several sources: add and switch between logins and M3U playlists
 • No ads, no tracking, no account
 
 Important: Huru is only a player. It does not provide, sell or recommend any channels, playlists, movies or series. You need your own subscription from a provider that is licensed to distribute its content.

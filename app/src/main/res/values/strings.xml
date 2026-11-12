@@ -36,14 +36,14 @@
     <string name="playback_error">Error: %1$s · press OK to retry</string>
 
     <string name="about_version">Version %1$s</string>
-    <string name="about_text">A clean, ad-free player for your own Xtream Codes subscription. Huru does not provide any channels, movies or series.</string>
+    <string name="about_text">A clean, ad-free player for your own Xtream Codes subscription or M3U playlist. Huru does not provide any channels, movies or series.</string>
     <string name="about_license">Source-available under the PolyForm Noncommercial License 1.0.0. Commercial use is not permitted.</string>
     <string name="about_donate">Enjoying Huru? Buy me a coffee</string>
     <string name="about_donate_qr">Ko-fi QR code</string>
 
     <string name="mode_settings">⚙</string>
     <string name="setup_welcome">Welcome to Huru</string>
-    <string name="setup_hint">Add your Xtream Codes login – or try the demo with free, legal test content.</string>
+    <string name="setup_hint">Add your Xtream Codes login or M3U playlist – or try the demo with free, legal test content.</string>
     <string name="source_add_title">Add source</string>
     <string name="source_edit_title">Edit source</string>
     <string name="source_name">Name (optional)</string>
@@ -98,4 +98,8 @@
     <string name="search_hint_channels">Search channels (at least 2 characters)</string>
     <string name="start_over_hint">◀ From the start</string>
     <string name="archive_running">running</string>
+    <string name="source_type_xtream">Xtream Codes</string>
+    <string name="source_type_m3u">M3U playlist</string>
+    <string name="login_playlist">Playlist URL</string>
+    <string name="login_epg">EPG URL (XMLTV, optional)</string>
 </resources>
