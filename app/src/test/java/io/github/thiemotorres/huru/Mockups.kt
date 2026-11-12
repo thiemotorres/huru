@@ -143,6 +143,13 @@ class Mockups {
         }
     }
 
+    @Test fun player_zap() = shot {
+        Box(Modifier.fillMaxSize().background(Color.Black)) {
+            Image(bitmap("still2").asImageBitmap(), null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+            Box(Modifier.align(Alignment.BottomCenter)) { InfoBar(channels[3], schedules[3], error = null, now = now) }
+        }
+    }
+
     @Test fun movies() = shot {
         Row(Modifier.fillMaxSize().padding(24.dp), horizontalArrangement = Arrangement.spacedBy(24.dp)) {
             Column(Modifier.width(260.dp)) {

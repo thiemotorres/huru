@@ -68,4 +68,5 @@ if __name__ == "__main__":
     for i in range(20):
         render(scene(i, 300, 450, motifs[i % len(motifs)]), f"{OUT}/poster{i}.png", 300, 450)
     render(scene(3, 1920, 1080, "mountains"), f"{OUT}/still.png", 1920, 1080)
+    render(scene(9, 1920, 1080, "city"), f"{OUT}/still2.png", 1920, 1080)
     print("ok", OUT)
