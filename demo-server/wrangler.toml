@@ -2,6 +2,8 @@
 name = "huru-demo"
 main = "src/index.js"
 compatibility_date = "2025-09-01"
+# Public demo URL; the workers.dev URL keeps working as well.
+routes = [{ pattern = "huru-demo.feto.dev", custom_domain = true }]
 
 [assets]
 directory = "public"

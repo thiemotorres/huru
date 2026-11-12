@@ -6,7 +6,7 @@ A tiny [Xtream Codes](https://github.com/thiemotorres/huru)-compatible API on Cl
 
 | | |
 |---|---|
-| Server | the Worker URL, e.g. `https://huru-demo.<account>.workers.dev` |
+| Server | `https://huru-demo.feto.dev` |
 | Username | `demo` |
 | Password | `demo` |
 

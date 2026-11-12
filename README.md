@@ -6,6 +6,8 @@
 <p align="center"><img src="docs/screenshots/player.png" alt="Player" width="49%"> <img src="docs/screenshots/series-detail.png" alt="Series" width="49%"></p>
 <p align="center"><sub>Screenshots use fictional channels and artwork.</sub></p>
 
+**Try it:** sign in with server `https://huru-demo.feto.dev`, username `demo`, password `demo` – a demo server with legal content only (see [`demo-server/`](demo-server/)).
+
 > **Note:** Huru does not provide any channels, movies or series and does not point to any provider. You need your own, legitimate subscription.
 
 ## Features

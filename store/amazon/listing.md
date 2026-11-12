@@ -56,5 +56,6 @@ No violence, sexual content, profanity, drugs or gambling in the app itself. The
 3. Create the app → "Android" → upload the **Amazon** APK (`-Pstore=amazon`).
 4. Device support: Fire TV devices only. Vega OS devices (e.g. Fire TV Stick 4K Select) cannot run Android apps and are excluded automatically.
 5. Upload graphics and texts from this folder.
-6. Reviewers need a way to test: provide working **test credentials** for a legal Xtream service in the "testing instructions" field – without them the review is likely to fail.
+6. Reviewers need a way to test – paste this into the "testing instructions" field:
+   > Huru is a player for the user's own Xtream Codes subscription. For testing, use our demo server with legal content only (Blender open movies under Creative Commons and public HLS test streams): Server `https://huru-demo.feto.dev`, username `demo`, password `demo`.
 7. Expect scrutiny: Amazon actively removes piracy-related IPTV apps. Keep the description clear that Huru is only a player.

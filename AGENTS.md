@@ -33,6 +33,10 @@ adb install -r app/build/outputs/apk/release/app-release.apk
 - Fictional artwork for mocks: `python3 tools/mock_assets.py`. Ko-fi QR drawable: `python3 tools/kofi_qr.py` (needs `segno`).
 - Amazon graphics: `python3 tools/store_assets.py` → `store/amazon/`; texts and checklist in `store/amazon/listing.md`.
 
+## Demo server
+
+`demo-server/` is a Cloudflare Worker with an Xtream-compatible API and legal content only (Blender open movies, public HLS test streams). URL `https://huru-demo.feto.dev`, login `demo`/`demo`. Use it for testing and for store reviewers; never add content that isn't clearly free to redistribute. Deploy: `cd demo-server && npx wrangler deploy` (maintainer's Cloudflare account).
+
 ## Testing on the device
 
 - The target is a Fire TV Stick 4K Max (Fire OS 8 / Android 11) reachable via `adb`.
