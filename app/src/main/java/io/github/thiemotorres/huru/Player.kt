@@ -46,6 +46,7 @@ fun Player(x: Xtream, channels: List<Channel>, start: Int, onChannel: (Channel) 
     val channels = remember { channels }
     var index by remember { mutableIntStateOf(start) }
     var error by remember { mutableStateOf<String?>(null) }
+    var retry by remember { mutableIntStateOf(0) }
     var epg by remember { mutableStateOf<List<Programme>>(emptyList()) }
     var overlayTick by remember { mutableIntStateOf(0) }
     var overlay by remember { mutableStateOf(true) }
@@ -59,7 +60,10 @@ fun Player(x: Xtream, channels: List<Channel>, start: Int, onChannel: (Channel) 
         newPlayer(context).setLoadControl(loadControl).build().apply {
             playWhenReady = true
             addListener(object : MediaPlayer.Listener {
-                override fun onPlayerError(e: PlaybackException) { error = describe(e) }
+                override fun onPlayerError(e: PlaybackException) {
+                    // Some servers only deliver HLS: retry once as .m3u8, then stay on HLS.
+                    if (x.liveExt == "ts") { x.liveExt = "m3u8"; retry++ } else error = describe(e)
+                }
             })
         }
     }
@@ -71,6 +75,7 @@ fun Player(x: Xtream, channels: List<Channel>, start: Int, onChannel: (Channel) 
         player.prepare()
     }
 
+    LaunchedEffect(retry) { if (retry > 0) play() }
     LaunchedEffect(channel) {
         play()
         onChannel(channel)

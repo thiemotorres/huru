@@ -1,0 +1,7 @@
+# Huru demo server – Xtream Codes-compatible test API with legal content only.
+name = "huru-demo"
+main = "src/index.js"
+compatibility_date = "2025-09-01"
+
+[assets]
+directory = "public"

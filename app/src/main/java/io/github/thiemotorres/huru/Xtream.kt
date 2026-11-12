@@ -117,8 +117,11 @@ class Xtream(val account: Account) {
     fun episodeUrl(episode: Episode) =
         "$base/series/${Uri.encode(account.user)}/${Uri.encode(account.pass)}/${episode.id}.${episode.ext}"
 
+    /** Live format: MPEG-TS first; switches to HLS for the rest of the session if a TS stream fails (see Player). */
+    @Volatile var liveExt = "ts"
+
     fun streamUrl(channel: Channel) =
-        "$base/live/${Uri.encode(account.user)}/${Uri.encode(account.pass)}/${channel.id}.ts"
+        "$base/live/${Uri.encode(account.user)}/${Uri.encode(account.pass)}/${channel.id}.$liveExt"
 }
 
 /** Depending on the panel, "episodes" is an object {"1": [...], "2": [...]} or an array of arrays. */
