@@ -20,12 +20,17 @@ import androidx.tv.material3.*
 import kotlinx.coroutines.android.awaitFrame
 import kotlinx.coroutines.launch
 
+/** Focus target for the "add source" button. */
+const val ADD_SOURCE = "__add_source"
+
 /** Settings: manage sources (switch, edit, delete, add) next to the about panel. */
 @Composable
 fun SettingsScreen(
     header: @Composable () -> Unit,
     sources: List<Account>,
     active: Account,
+    focusId: String?,
+    onFocusId: (String?) -> Unit,
     onActivate: (Account) -> Unit,
     onSave: (Account) -> Unit,
     onDelete: (Account) -> Unit,
@@ -36,9 +41,18 @@ fun SettingsScreen(
         SourceForm(
             initial = form,
             onSave = { onSave(it); form = null; adding = false },
-            onCancel = { form = null; adding = false },
+            onCancel = { onFocusId(form?.id ?: ADD_SOURCE); form = null; adding = false },
         )
         return
+    }
+    // Focus the row we came from (saved, edited, neighbour of a deleted one) instead of the mode switch.
+    val requesters = remember { mutableMapOf<String, FocusRequester>() }
+    fun requester(id: String) = requesters.getOrPut(id) { FocusRequester() }
+    LaunchedEffect(focusId) {
+        val id = focusId ?: return@LaunchedEffect
+        awaitFrame()
+        runCatching { requester(id).requestFocus() }
+        onFocusId(null)
     }
     Column(Modifier.fillMaxSize().padding(24.dp)) {
         header()
@@ -46,9 +60,13 @@ fun SettingsScreen(
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(stringResource(R.string.sources_title), style = MaterialTheme.typography.titleLarge)
                 LazyColumn(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    items(sources, key = { it.id }) { source -> SourceRow(source, source == active, onActivate, { form = it }, onDelete) }
+                    items(sources, key = { it.id }) { source ->
+                        SourceRow(source, source == active, Modifier.focusRequester(requester(source.id)), onActivate, { form = it }, onDelete)
+                    }
                     item {
-                        Button(onClick = { adding = true }, Modifier.padding(top = 8.dp)) { Text(stringResource(R.string.source_add)) }
+                        Button(onClick = { adding = true }, Modifier.padding(top = 8.dp).focusRequester(requester(ADD_SOURCE))) {
+                            Text(stringResource(R.string.source_add))
+                        }
                     }
                 }
             }
@@ -61,6 +79,7 @@ fun SettingsScreen(
 private fun SourceRow(
     source: Account,
     active: Boolean,
+    focus: Modifier,
     onActivate: (Account) -> Unit,
     onEdit: (Account) -> Unit,
     onDelete: (Account) -> Unit,
@@ -73,7 +92,7 @@ private fun SourceRow(
             headlineContent = { Text(source.name.ifBlank { hostOf(source.server) }, maxLines = 1, overflow = TextOverflow.Ellipsis) },
             supportingContent = { Text("${hostOf(source.server)} · ${source.user}", maxLines = 1, overflow = TextOverflow.Ellipsis) },
             trailingContent = if (active) { { Badge(stringResource(R.string.source_active)) } } else null,
-            modifier = Modifier.weight(1f),
+            modifier = Modifier.weight(1f).then(focus),
         )
         OutlinedButton(onClick = { onEdit(source) }) { Text(stringResource(R.string.source_edit)) }
         OutlinedButton(onClick = { if (confirm) onDelete(source) else confirm = true }) {

@@ -203,7 +203,7 @@ class Mockups {
 
     @Test fun settings() = shot {
         val sources = listOf(DEMO_SOURCE.copy(id = "demo"), Account("http://tv.example.com:8080", "anna", "x", id = "home", name = "Home"))
-        SettingsScreen(header = { ModeSwitch(3, onMode = {}, focus = false) }, sources, sources[1], {}, {}, {})
+        SettingsScreen(header = { ModeSwitch(3, onMode = {}, focus = false) }, sources, sources[1], null, {}, {}, {}, {})
     }
 
     @Test fun setup() = shot { SourceForm(initial = null, onSave = {}, onCancel = null) }

@@ -76,12 +76,13 @@ fun App() {
     var activeId by remember { mutableStateOf(store.activeId()) }
     val active = sources.firstOrNull { it.id == activeId } ?: sources.firstOrNull()
     var mode by remember { mutableIntStateOf(0) } // 0 TV, 1 movies, 2 series, 3 settings
-    var switched by remember { mutableStateOf(false) } // after switching modes, focus the switcher instead of the list
+    var switched by remember { mutableStateOf(false) } // after switching modes, focus the switcher once instead of the list
+    var settingsFocus by remember { mutableStateOf<String?>(null) } // source row (or ADD_SOURCE) to focus in settings
     var autoplay by remember { mutableStateOf(true) } // auto-play the last channel only on app start
     fun update(list: List<Account>, newActive: String?) {
         sources = list; activeId = newActive; store.save(list, newActive)
     }
-    val header = @Composable { ModeSwitch(mode, onMode = { mode = it; switched = true }, focus = switched) }
+    val header = @Composable { ModeSwitch(mode, onMode = { mode = it; switched = true }, focus = switched, onFocused = { switched = false }) }
 
     if (active == null) {
         // First run (or all sources deleted): set up a source or try the demo.
@@ -97,16 +98,19 @@ fun App() {
                 onManageSources = { mode = 3; switched = true },
             )
             3 -> SettingsScreen(
-                header, sources, active,
+                header, sources, active, focusId = settingsFocus, onFocusId = { settingsFocus = it },
                 onActivate = { autoplay = false; update(sources, it.id); mode = 0; switched = false },
                 onSave = { saved ->
                     val list = if (sources.any { it.id == saved.id }) sources.map { if (it.id == saved.id) saved else it } else sources + saved
                     if (sources.none { it.id == saved.id }) store.deleteData(saved) // fresh id: make sure nothing stale is left
                     update(list, activeId ?: saved.id)
+                    settingsFocus = saved.id
                 },
                 onDelete = { gone ->
                     store.deleteData(gone)
+                    val index = sources.indexOf(gone)
                     val list = sources - gone
+                    settingsFocus = (list.getOrNull(index) ?: list.getOrNull(index - 1))?.id ?: ADD_SOURCE
                     update(list, if (gone == active) list.firstOrNull()?.id else active.id)
                 },
             )
@@ -117,7 +121,7 @@ fun App() {
 }
 
 @Composable
-fun ModeSwitch(mode: Int, onMode: (Int) -> Unit, focus: Boolean) {
+fun ModeSwitch(mode: Int, onMode: (Int) -> Unit, focus: Boolean, onFocused: () -> Unit = {}) {
     val requester = remember { FocusRequester() }
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         listOf(R.string.mode_tv, R.string.mode_movies, R.string.mode_series, R.string.mode_settings).map { stringResource(it) }.forEachIndexed { i, label ->
@@ -136,7 +140,8 @@ fun ModeSwitch(mode: Int, onMode: (Int) -> Unit, focus: Boolean) {
             }
         }
     }
-    LaunchedEffect(Unit) { if (focus) { awaitFrame(); runCatching { requester.requestFocus() } } }
+    // Only right after a mode switch – not every time the switcher is rebuilt (e.g. after closing a form).
+    LaunchedEffect(Unit) { if (focus) { awaitFrame(); runCatching { requester.requestFocus() }; onFocused() } }
 }
 
 /**
