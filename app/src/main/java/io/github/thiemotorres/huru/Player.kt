@@ -53,7 +53,15 @@ import java.util.Locale
 /** Full-screen live player. Up/Down (or CH+/CH−) zaps within the category, OK shows info, Back exits. */
 @Composable
 @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class) // DefaultLoadControl
-fun Player(x: Xtream, channels: List<Channel>, start: Int, onChannel: (Channel) -> Unit, onWatched: (Channel) -> Unit, onExit: (Int) -> Unit) {
+fun Player(
+    x: Xtream,
+    channels: List<Channel>,
+    start: Int,
+    onChannel: (Channel) -> Unit,
+    onWatched: (Channel) -> Unit,
+    onStartOver: (Channel, Programme) -> Unit,
+    onExit: (Int) -> Unit,
+) {
     val context = LocalContext.current
     // Pin the list on start: a background refresh must not switch the channel mid-viewing.
     val channels = remember { channels }
@@ -128,7 +136,8 @@ fun Player(x: Xtream, channels: List<Channel>, start: Int, onChannel: (Channel) 
                         overlayTick++
                         true
                     }
-                    Key.DirectionLeft, Key.DirectionRight -> true // don't let focus escape into the list behind
+                    Key.DirectionLeft -> { startOver(channel, epg)?.let { onStartOver(channel, it) }; true }
+                    Key.DirectionRight -> true // don't let focus escape into the list behind
                     else -> false
                 }
             }
@@ -141,7 +150,7 @@ fun Player(x: Xtream, channels: List<Channel>, start: Int, onChannel: (Channel) 
             enter = fadeIn(), exit = fadeOut(),
             modifier = Modifier.align(Alignment.BottomCenter),
         ) {
-            InfoBar(channel, epg, error, paused = paused)
+            InfoBar(channel, epg, error, paused = paused, startOver = startOver(channel, epg) != null)
         }
         if (menu) TrackMenu(player, { menu = false; focus.requestFocus() }, Modifier.align(Alignment.CenterEnd))
     }
@@ -296,8 +305,19 @@ private fun trackLabels(options: List<Pair<Tracks.Group, Int>>): List<String> {
 
 val hhmm = SimpleDateFormat("HH:mm", Locale.GERMANY)
 
+/** The running programme, if the channel's catch-up can play it from its start (Left in the live player). */
+fun startOver(channel: Channel, epg: List<Programme>, now: Long = System.currentTimeMillis()): Programme? =
+    epg.firstOrNull()?.takeIf { channel.archiveDays > 0 && it.serverStart != null && now in it.start until it.end }
+
 @Composable
-internal fun InfoBar(channel: Channel, epg: List<Programme>, error: String?, now: Long = System.currentTimeMillis(), paused: Boolean = false) {
+internal fun InfoBar(
+    channel: Channel,
+    epg: List<Programme>,
+    error: String?,
+    now: Long = System.currentTimeMillis(),
+    paused: Boolean = false,
+    startOver: Boolean = false,
+) {
     val current = epg.firstOrNull()
     Row(
         Modifier
@@ -321,6 +341,7 @@ internal fun InfoBar(channel: Channel, epg: List<Programme>, error: String?, now
                 epg.getOrNull(1)?.let {
                     Text(stringResource(R.string.next_programme, hhmm.format(Date(it.start)), it.title), color = Color.White.copy(alpha = 0.6f))
                 }
+                if (startOver) Text(stringResource(R.string.start_over_hint), color = Accent)
             }
         }
     }

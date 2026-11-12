@@ -112,6 +112,7 @@ fun VodScreen(x: Xtream, series: Boolean, header: @Composable () -> Unit, autoFo
     var playing by remember { mutableStateOf<Playback?>(null) }
     var lastPicked by remember { mutableStateOf<Int?>(null) } // poster that focus returns to
     var query by remember { mutableStateOf("") }
+    var typing by remember { mutableStateOf(false) } // search keyboard open: stray focus must not switch the category
     val store = remember { ProgressStore(context, x.account) }
     val prefix = if (series) "ep-" else "movie-"
     val pickedFocus = remember { FocusRequester() }
@@ -193,7 +194,7 @@ fun VodScreen(x: Xtream, series: Boolean, header: @Composable () -> Unit, autoFo
                             onLongClick = { if (!special) { lockUsed = true; menu = cat } },
                             modifier = Modifier
                                 .then(if (cat.id == selected) Modifier.focusRequester(firstCategory) else Modifier)
-                                .onFocusChanged { if (it.isFocused) selected = cat.id },
+                                .onFocusChanged { if (it.isFocused && !typing) selected = cat.id },
                         )
                     }
                 }
@@ -201,7 +202,7 @@ fun VodScreen(x: Xtream, series: Boolean, header: @Composable () -> Unit, autoFo
             Column(Modifier.weight(1f)) {
             if (selected in closed) LockedHint()
             if (selected == SEARCH) {
-                Field(stringResource(R.string.search_hint), query, imeAction = ImeAction.Search) { query = it }
+                Field(stringResource(R.string.search_hint), query, imeAction = ImeAction.Search, onTyping = { typing = it }) { query = it }
                 Spacer(Modifier.height(12.dp))
             }
             LazyVerticalGrid(

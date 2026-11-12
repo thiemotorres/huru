@@ -86,4 +86,7 @@
     <string name="archive_empty">No recordings available</string>
     <string name="today">Today</string>
     <string name="yesterday">Yesterday</string>
+    <string name="search_hint_channels">Search channels (at least 2 characters)</string>
+    <string name="start_over_hint">◀ From the start</string>
+    <string name="archive_running">running</string>
 </resources>

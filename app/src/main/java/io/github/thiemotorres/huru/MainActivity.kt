@@ -160,6 +160,7 @@ fun Field(
     type: KeyboardType = KeyboardType.Text,
     password: Boolean = false,
     imeAction: ImeAction = ImeAction.Next,
+    onTyping: (Boolean) -> Unit = {}, // true from opening the keyboard until focus is safely back (see BrowseScreen)
     onChange: (String) -> Unit,
 ) {
     var editing by remember { mutableStateOf(false) }
@@ -202,16 +203,27 @@ fun Field(
                         if (e.type != KeyEventType.KeyDown) false
                         else when (e.key) {
                             Key.DirectionCenter, Key.Enter -> { keyboard?.show(); true } // reopen after Back
-                            Key.DirectionUp, Key.DirectionDown -> { leaving = true; false }
+                            // The text field swallows Up/Down itself, so move on explicitly.
+                            Key.DirectionUp, Key.DirectionDown -> {
+                                leaving = true
+                                focusManager.moveFocus(if (e.key == Key.DirectionUp) FocusDirection.Up else FocusDirection.Down)
+                                true
+                            }
+                            // Back would otherwise become a focus exit that lands anywhere (e.g. on another category).
+                            Key.Back -> { keyboard?.hide(); editing = false; refocus++; true }
                             else -> false
                         }
                     }
                     .border(2.dp, Accent, shape)
                     .padding(horizontal = 12.dp, vertical = 14.dp),
             )
-            LaunchedEffect(Unit) { editor.requestFocus(); keyboard?.show() }
+            LaunchedEffect(Unit) { onTyping(true); editor.requestFocus(); keyboard?.show() }
         } else {
-            LaunchedEffect(refocus) { if (refocus > 0) { awaitFrame(); runCatching { idle.requestFocus() } } }
+            LaunchedEffect(refocus) {
+                // Fire OS closes the keyboard on Back without telling us and drops focus anywhere: take it back.
+                if (refocus > 0) { awaitFrame(); runCatching { idle.requestFocus() } }
+                onTyping(false)
+            }
             Surface(
                 onClick = { editing = true },
                 modifier = box.focusRequester(idle),
@@ -279,10 +291,19 @@ fun BrowseScreen(
     var focusCat by remember { mutableStateOf<String?>(null) } // category to refocus after menu/PIN
     var archiveOf by remember { mutableStateOf<Channel?>(null) } // catch-up list open for this channel
     var replay by remember { mutableStateOf<Playback?>(null) } // catch-up recording playing
+    var liveAfter by remember { mutableStateOf<Channel?>(null) } // start-over: go live when the recording runs out
+    var backToLive by remember { mutableStateOf(false) } // start-over came from the live player: Back returns there
+    var query by remember { mutableStateOf("") }
+    var typing by remember { mutableStateOf(false) } // search keyboard open: stray focus must not switch the category
+    val searchIndex = remember(all) { all.map { it to searchKey(it.name) } }
     // Locked categories show no channels, also not via favourites or recently watched.
     fun channelsOf(cat: String?, closed: Set<String>) =
         when (cat) {
             in closed -> emptyList()
+            SEARCH -> searchKey(query.trim()).let { q ->
+                if (q.length < 2) emptyList()
+                else searchIndex.asSequence().filter { (ch, key) -> q in key && ch.categoryId !in closed }.map { it.first }.take(300).toList()
+            }
             FAVORITES -> all.filter { it.id.toString() in favorites && it.categoryId !in closed }
             RECENT -> all.associateBy { it.id }.let { byId -> recent.mapNotNull { byId[it] }.filter { it.categoryId !in closed } }
             else -> byCategory[cat].orEmpty()
@@ -328,14 +349,16 @@ fun BrowseScreen(
     val favoritesLabel = stringResource(R.string.favorites)
     val recentLabel = stringResource(R.string.recent)
     val hiddenLabel = if (showHidden) stringResource(R.string.hide_hidden) else stringResource(R.string.hidden_count, hiddenCount)
+    val searchLabel = stringResource(R.string.search)
     val cats = buildList {
+        add(Category(SEARCH, searchLabel))
         if (favorites.isNotEmpty()) add(Category(FAVORITES, favoritesLabel))
         if (recent.isNotEmpty()) add(Category(RECENT, recentLabel))
         addAll(if (showHidden) loaded else loaded.filter { it.id !in hidden })
         if (hiddenCount > 0) add(Category(TOGGLE_HIDDEN, hiddenLabel))
     }
     val closed = lock.closedIds("live", loaded)
-    val channels = remember(selected, all, favorites, recent, closed) { channelsOf(selected, closed) }
+    val channels = remember(selected, all, favorites, recent, closed, query) { channelsOf(selected, closed) }
     val firstCategory = remember { FocusRequester() }
     val catFocus = remember { FocusRequester() }
     LaunchedEffect(menu == null && gate == null) {
@@ -359,7 +382,7 @@ fun BrowseScreen(
                 Spacer(Modifier.height(12.dp))
                 LazyColumn(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     itemsIndexed(cats, key = { _, c -> c.id }) { i, cat ->
-                        val special = cat.id == FAVORITES || cat.id == RECENT || cat.id == TOGGLE_HIDDEN
+                        val special = cat.id == SEARCH || cat.id == FAVORITES || cat.id == RECENT || cat.id == TOGGLE_HIDDEN
                         CategoryItem(
                             cat,
                             selected = cat.id == selected,
@@ -371,9 +394,10 @@ fun BrowseScreen(
                             },
                             onLongClick = { if (!special) { focusCat = cat.id; menu = cat } },
                             modifier = Modifier
-                                .then(if (i == 0) Modifier.focusRequester(firstCategory) else Modifier)
+                                // Start on the selected category (not on Search at the top).
+                                .then(if (cat.id == selected || selected == null && i == 0) Modifier.focusRequester(firstCategory) else Modifier)
                                 .then(if (cat.id == focusCat) Modifier.focusRequester(catFocus) else Modifier)
-                                .onFocusChanged { if (it.isFocused && cat.id != TOGGLE_HIDDEN) selected = cat.id },
+                                .onFocusChanged { if (it.isFocused && cat.id != TOGGLE_HIDDEN && !typing) selected = cat.id },
                         )
                     }
                 }
@@ -383,6 +407,10 @@ fun BrowseScreen(
             Column(Modifier.weight(1f)) {
                 GuideHeader(start, now)
                 if (selected in closed) LockedHint()
+                if (selected == SEARCH) {
+                    Field(stringResource(R.string.search_hint_channels), query, imeAction = ImeAction.Search, onTyping = { typing = it }) { query = it }
+                    Spacer(Modifier.height(12.dp))
+                }
                 LazyColumn(state = channelList, verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     itemsIndexed(channels, key = { _, c -> c.id }) { i, ch ->
                         LaunchedEffect(ch.id, start) {
@@ -420,6 +448,12 @@ fun BrowseScreen(
                     val ids = (listOf(ch.id) + readRecent().filter { it != ch.id }).take(10)
                     lastPrefs.edit().putString("recent", ids.joinToString(",")).apply()
                 },
+                onStartOver = { ch, p ->
+                    x.archiveUrl(ch, p)?.let {
+                        replay = Playback(it, "${ch.label} · ${p.title}", "archive", ch.logo)
+                        liveAfter = ch; backToLive = true; playing = null
+                    }
+                },
                 onExit = { last ->
                     val id = channels.getOrNull(last)?.id
                     recent = readRecent()
@@ -431,12 +465,28 @@ fun BrowseScreen(
         archiveOf?.let { ch ->
             ArchivePanel(
                 x, ch, active = replay == null,
-                onPlay = { p -> x.archiveUrl(ch, p)?.let { replay = Playback(it, "${ch.label} · ${p.title}", "archive", ch.logo) } },
+                onPlay = { p ->
+                    x.archiveUrl(ch, p)?.let { replay = Playback(it, "${ch.label} · ${p.title}", "archive", ch.logo) }
+                    liveAfter = ch.takeIf { p.end > System.currentTimeMillis() }
+                },
                 onClose = { archiveOf = null; returnTo = channels.indexOf(ch).takeIf { it >= 0 }; refocus++ },
                 modifier = Modifier.align(Alignment.CenterEnd),
             )
         }
-        replay?.let { p -> key(p.url) { VodPlayer(p, store = null, onEnded = { replay = null }, onExit = { replay = null }) } }
+        fun goLive(ch: Channel?) {
+            val i = ch?.let { channels.indexOf(it) } ?: -1
+            if (i >= 0) { archiveOf = null; returnTo = null; playing = i }
+        }
+        replay?.let { p ->
+            key(p.url) {
+                VodPlayer(
+                    p, store = null,
+                    // The recording of a running programme ends at "now": carry on live.
+                    onEnded = { replay = null; goLive(liveAfter); liveAfter = null; backToLive = false },
+                    onExit = { replay = null; if (backToLive) goLive(liveAfter); liveAfter = null; backToLive = false },
+                )
+            }
+        }
         menu?.let { cat ->
             val isLocked = lock.isLocked("live", cat)
             CategoryMenu(
@@ -457,6 +507,7 @@ fun BrowseScreen(
 
 private const val FAVORITES = "__favorites"
 private const val RECENT = "__recent"
+private const val SEARCH = "__search"
 private const val TOGGLE_HIDDEN = "__toggle_hidden"
 
 /** Small outlined tag, e.g. a country prefix or quality. */

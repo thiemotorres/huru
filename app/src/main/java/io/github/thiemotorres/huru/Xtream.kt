@@ -153,10 +153,13 @@ class Xtream(val account: Account) {
     fun episodeUrl(episode: Episode) =
         "$base/series/${Uri.encode(account.user)}/${Uri.encode(account.pass)}/${episode.id}.${episode.ext}"
 
-    /** Recorded programmes of a catch-up channel, newest first. Not filtered by has_archive: panels set it hours late. */
+    /**
+     * Recorded programmes of a catch-up channel, newest first, including the running one (plays from its start up to now).
+     * Not filtered by has_archive: panels set it hours late.
+     */
     suspend fun archive(channel: Channel, now: Long = System.currentTimeMillis()): List<Programme> =
         epg(get("&action=get_simple_data_table&stream_id=${channel.id}"))
-            .filter { it.end <= now && it.start >= now - channel.archiveDays * 86_400_000L && it.serverStart != null }
+            .filter { it.start <= now && it.start >= now - channel.archiveDays * 86_400_000L && it.serverStart != null }
             .sortedByDescending { it.start }
 
     fun archiveUrl(channel: Channel, p: Programme): String? {

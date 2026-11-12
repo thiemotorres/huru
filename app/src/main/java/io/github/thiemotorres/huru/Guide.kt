@@ -166,6 +166,7 @@ fun ArchivePanel(x: Xtream, channel: Channel, active: Boolean, onPlay: (Programm
     val list = items
     val today = stringResource(R.string.today)
     val yesterday = stringResource(R.string.yesterday)
+    val runningLabel = stringResource(R.string.archive_running)
     fun day(t: Long): String {
         val days = (dayStart(System.currentTimeMillis()) - dayStart(t)) / 86_400_000L
         return when (days) { 0L -> today; 1L -> yesterday; else -> SimpleDateFormat("EE dd.MM.", Locale.getDefault()).format(Date(t)) }
@@ -192,7 +193,10 @@ fun ArchivePanel(x: Xtream, channel: Channel, active: Boolean, onPlay: (Programm
                     selected = false,
                     onClick = { picked = i; onPlay(p) },
                     headlineContent = { Text(p.title, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                    supportingContent = { Text("${day(p.start)}  ${hhmm.format(Date(p.start))}–${hhmm.format(Date(p.end))}") },
+                    supportingContent = {
+                        val running = p.end > System.currentTimeMillis()
+                        Text("${day(p.start)}  ${hhmm.format(Date(p.start))}–${hhmm.format(Date(p.end))}" + if (running) "  ·  $runningLabel" else "")
+                    },
                     modifier = if (i == picked) Modifier.focusRequester(focus) else Modifier,
                 )
             }
