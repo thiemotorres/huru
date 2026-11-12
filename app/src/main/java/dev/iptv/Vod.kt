@@ -174,11 +174,13 @@ fun CategoryItem(
 
 @Composable
 private fun Poster(item: VodItem, modifier: Modifier, onClick: () -> Unit) {
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    // Abstand > Vergrößerung beim Fokus, sonst überdeckt das Poster den Titel.
+    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Surface(
             onClick = onClick,
             modifier = modifier.fillMaxWidth().aspectRatio(2f / 3f),
             shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(8.dp)),
+            scale = ClickableSurfaceDefaults.scale(focusedScale = 1.05f),
             border = ClickableSurfaceDefaults.border(
                 focusedBorder = Border(androidx.compose.foundation.BorderStroke(2.dp, Accent), shape = RoundedCornerShape(8.dp)),
             ),
