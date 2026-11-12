@@ -12,7 +12,6 @@ jobs:
   release:
     runs-on: ubuntu-latest
     env:
-      HURU_KEYSTORE_FILE: ${{ runner.temp }}/huru.jks
       HURU_KEYSTORE_PASSWORD: ${{ secrets.HURU_KEYSTORE_PASSWORD }}
       HURU_KEY_ALIAS: ${{ secrets.HURU_KEY_ALIAS }}
       HURU_KEY_PASSWORD: ${{ secrets.HURU_KEY_PASSWORD }}
@@ -24,7 +23,9 @@ jobs:
           java-version: 17
       - uses: gradle/actions/setup-gradle@v4
       - name: Decode keystore
-        run: echo "${{ secrets.HURU_KEYSTORE_BASE64 }}" | base64 -d > "$HURU_KEYSTORE_FILE"
+        run: |
+          echo "${{ secrets.HURU_KEYSTORE_BASE64 }}" | base64 -d > "$RUNNER_TEMP/huru.jks"
+          echo "HURU_KEYSTORE_FILE=$RUNNER_TEMP/huru.jks" >> "$GITHUB_ENV"
       - name: Build
         run: |
           V="${GITHUB_REF_NAME#v}"
