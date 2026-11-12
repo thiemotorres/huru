@@ -50,14 +50,22 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         val prefs = getSharedPreferences("account", MODE_PRIVATE)
         setContent {
-            MaterialTheme(colorScheme = darkColorScheme(primary = Accent)) {
-                Surface(Modifier.fillMaxSize(), shape = RectangleShape) { App(prefs) }
+            MaterialTheme(colorScheme = darkColorScheme(primary = Accent, surface = Night, background = Night)) {
+                var splash by remember { mutableStateOf(true) }
+                Box {
+                    Surface(Modifier.fillMaxSize(), shape = RectangleShape) { App(prefs) }
+                    // Startbild über der App; darunter laden Listen und ggf. der letzte Sender schon
+                    androidx.compose.animation.AnimatedVisibility(splash, exit = androidx.compose.animation.fadeOut()) {
+                        Splash { splash = false }
+                    }
+                }
             }
         }
     }
 }
 
-val Accent = Color(0xFFE8A33D)
+val Accent = Coral
+val Night = Color(0xFF1E1520) // sehr dunkles Pflaume als App-Hintergrund
 
 // ponytail: Zugangsdaten im Klartext in SharedPreferences (app-privat). Reicht für den eigenen Stick.
 private fun SharedPreferences.account() =

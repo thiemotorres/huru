@@ -6,11 +6,11 @@
 
     <!-- Xtream-Server liefern fast immer http:// -->
     <application
-        android:label="IPTV"
-        android:icon="@drawable/banner"
+        android:label="Huru"
+        android:icon="@mipmap/ic_launcher"
         android:banner="@drawable/banner"
         android:usesCleartextTraffic="true"
-        android:theme="@android:style/Theme.Black.NoTitleBar.Fullscreen">
+        android:theme="@style/Theme.Huru">
         <activity
             android:name=".MainActivity"
             android:exported="true"
