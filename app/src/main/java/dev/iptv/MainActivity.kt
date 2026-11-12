@@ -1,5 +1,6 @@
 package dev.iptv
 
+import android.content.Context
 import android.content.SharedPreferences
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -18,6 +19,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.graphics.Color
@@ -137,7 +139,15 @@ private fun Field(
 @Composable
 fun BrowseScreen(x: Xtream, onLogout: () -> Unit) {
     var categories by remember { mutableStateOf<List<Category>?>(null) }
+    var all by remember { mutableStateOf<List<Channel>>(emptyList()) }
     var byCategory by remember { mutableStateOf<Map<String, List<Channel>>>(emptyMap()) }
+    val favPrefs = LocalContext.current.getSharedPreferences("favorites", Context.MODE_PRIVATE)
+    var favorites by remember { mutableStateOf(favPrefs.getStringSet("ids", emptySet())!!.toSet()) }
+    fun toggleFavorite(ch: Channel) {
+        val id = ch.id.toString()
+        favorites = if (id in favorites) favorites - id else favorites + id
+        favPrefs.edit().putStringSet("ids", favorites).apply()
+    }
     var error by remember { mutableStateOf<String?>(null) }
     var selected by remember { mutableStateOf<String?>(null) }
     var playing by remember { mutableStateOf<Int?>(null) } // Index in der aktuellen Kategorie
@@ -146,22 +156,26 @@ fun BrowseScreen(x: Xtream, onLogout: () -> Unit) {
     LaunchedEffect(x) {
         runCatching { x.categories() to x.channels() }
             .onSuccess { (cats, chans) ->
+                all = chans
                 byCategory = chans.groupBy { it.categoryId }
                 categories = cats.filter { byCategory[it.id] != null }
-                selected = categories?.firstOrNull()?.id
+                selected = if (favorites.isNotEmpty()) FAVORITES else categories?.firstOrNull()?.id
             }
             .onFailure { error = it.message ?: "Laden fehlgeschlagen" }
     }
 
-    val cats = categories
-    if (cats == null) {
+    val loaded = categories
+    if (loaded == null) {
         Column(Modifier.fillMaxSize(), Arrangement.Center, Alignment.CenterHorizontally) {
             Text(error ?: "Lade Sender…")
             if (error != null) Button(onClick = onLogout, Modifier.padding(top = 16.dp)) { Text("Abmelden") }
         }
         return
     }
-    val channels = byCategory[selected].orEmpty()
+    val cats = if (favorites.isEmpty()) loaded else listOf(Category(FAVORITES, "★ Favoriten")) + loaded
+    val channels = remember(selected, all, favorites) {
+        if (selected == FAVORITES) all.filter { it.id.toString() in favorites } else byCategory[selected].orEmpty()
+    }
     val firstCategory = remember { FocusRequester() }
     val channelFocus = remember { FocusRequester() }
     val channelList = rememberLazyListState()
@@ -193,6 +207,8 @@ fun BrowseScreen(x: Xtream, onLogout: () -> Unit) {
                     ListItem(
                         selected = false,
                         onClick = { returnTo = null; playing = i },
+                        onLongClick = { toggleFavorite(ch) },
+                        trailingContent = { if (ch.id.toString() in favorites) Text("★", color = Accent) },
                         headlineContent = { Text(ch.name, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                         leadingContent = { Logo(ch) },
                         modifier = if (i == returnTo) Modifier.focusRequester(channelFocus) else Modifier,
@@ -205,6 +221,8 @@ fun BrowseScreen(x: Xtream, onLogout: () -> Unit) {
         }
     }
 }
+
+private const val FAVORITES = "__favorites"
 
 @Composable
 fun Logo(ch: Channel, size: Int = 40) {
