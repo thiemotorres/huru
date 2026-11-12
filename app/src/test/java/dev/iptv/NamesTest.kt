@@ -47,3 +47,18 @@ class NullFieldsTest {
         assertEquals("mp4", ep.ext)
     }
 }
+
+class TextTest {
+    @Test fun episodeTitles() {
+        val s = "A Forma Errada de Usar Magia de Cura"
+        assertEquals("" to "DUAL FHD", cleanEpisodeTitle("$s S01E01 [DUAL FHD]", s))
+        assertEquals("Der Plan" to null, cleanEpisodeTitle("Serie - S01E02 - Der Plan", "Serie (2024)"))
+        assertEquals("Pilot" to "4K", cleanEpisodeTitle("Pilot [4K]", "Andere Serie"))
+        assertEquals("Ganz normal" to null, cleanEpisodeTitle("Ganz normal", "X"))
+    }
+
+    @Test fun search() {
+        assertEquals("acao e coracao", searchKey("Ação e Coração"))
+        assertEquals(true, searchKey("Pokémon: O Filme").contains(searchKey("POKEMON")))
+    }
+}

@@ -28,6 +28,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.*
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.text.input.ImeAction
+import org.json.JSONObject
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.media3.common.MediaItem
@@ -39,8 +42,52 @@ import coil.compose.AsyncImage
 import kotlinx.coroutines.android.awaitFrame
 import kotlinx.coroutines.delay
 
-/** Was gerade abgespielt wird: Stream-URL, Anzeigename und Schlüssel für die Fortsetzen-Position. */
-private data class Playback(val url: String, val title: String, val resumeKey: String)
+/** Was abgespielt wird. resumeKey merkt die Position, following läuft danach automatisch (nächste Folgen). */
+data class Playback(
+    val url: String,
+    val title: String,
+    val resumeKey: String,
+    val poster: String?,
+    val following: List<Playback> = emptyList(),
+)
+
+data class Progress(val playback: Playback, val position: Long, val duration: Long, val updated: Long)
+
+/** Angefangene Filme/Folgen ("movie-…", "ep-…") für Fortsetzen und "Weiterschauen". */
+class ProgressStore(context: Context) {
+    private val prefs = context.getSharedPreferences("continue", Context.MODE_PRIVATE)
+
+    fun save(p: Playback, position: Long, duration: Long) {
+        // Fast zu Ende oder kaum angefangen: nicht merken.
+        if (duration > 0 && position > duration * 0.95 || position < 30_000) {
+            prefs.edit().remove(p.resumeKey).apply()
+            return
+        }
+        val json = JSONObject()
+            .put("url", p.url).put("title", p.title).put("poster", p.poster ?: "")
+            .put("pos", position).put("dur", duration).put("t", System.currentTimeMillis())
+        prefs.edit().putString(p.resumeKey, json.toString()).apply()
+    }
+
+    fun position(key: String): Long = list(key).firstOrNull { it.playback.resumeKey == key }?.position ?: 0
+
+    /** Neueste zuerst. */
+    fun list(prefix: String): List<Progress> = prefs.all
+        .filterKeys { it.startsWith(prefix) }
+        .mapNotNull { (key, value) ->
+            runCatching {
+                val o = JSONObject(value as String)
+                Progress(
+                    Playback(o.getString("url"), o.getString("title"), key, o.optString("poster").ifBlank { null }),
+                    o.getLong("pos"), o.getLong("dur"), o.getLong("t"),
+                )
+            }.getOrNull()
+        }
+        .sortedByDescending { it.updated }
+}
+
+private const val SEARCH = "__search"
+private const val CONTINUE = "__continue"
 
 /** Sperrt eine Fokusgruppe für D-Pad-Navigation, solange etwas darüber liegt. */
 @OptIn(ExperimentalComposeUiApi::class)
@@ -58,6 +105,9 @@ fun VodScreen(x: Xtream, series: Boolean, header: @Composable () -> Unit, autoFo
     var detail by remember { mutableStateOf<VodItem?>(null) }
     var playing by remember { mutableStateOf<Playback?>(null) }
     var lastPicked by remember { mutableStateOf<Int?>(null) } // Poster, auf das der Fokus zurückkehrt
+    var query by remember { mutableStateOf("") }
+    val store = remember { ProgressStore(context) }
+    val prefix = if (series) "ep-" else "movie-"
     val pickedFocus = remember { FocusRequester() }
     val firstCategory = remember { FocusRequester() }
 
@@ -70,13 +120,13 @@ fun VodScreen(x: Xtream, series: Boolean, header: @Composable () -> Unit, autoFo
                 val parsed = if (series) x.parseSeries(items) else x.parseMovies(items)
                 byCategory = parsed.groupBy { it.categoryId }
                 categories = x.parseCategories(c).filter { byCategory[it.id] != null }
-                if (selected == null) selected = categories?.firstOrNull()?.id
+                if (selected == null) selected = if (store.list(prefix).isNotEmpty()) CONTINUE else categories?.firstOrNull()?.id
             }
         }.onFailure { if (categories == null) error = it.message ?: "Laden fehlgeschlagen" }
     }
 
-    val cats = categories
-    if (cats == null) {
+    val loaded = categories
+    if (loaded == null) {
         Column(Modifier.fillMaxSize().padding(24.dp)) {
             header()
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -86,7 +136,25 @@ fun VodScreen(x: Xtream, series: Boolean, header: @Composable () -> Unit, autoFo
         return
     }
     LaunchedEffect(Unit) { if (autoFocus) { awaitFrame(); runCatching { firstCategory.requestFocus() } } }
-    val items = byCategory[selected].orEmpty()
+    val inProgress = remember(playing) { store.list(prefix) } // nach dem Schauen neu lesen
+    val cats = buildList {
+        add(Category(SEARCH, "Suchen"))
+        if (inProgress.isNotEmpty()) add(Category(CONTINUE, "▶ Weiterschauen"))
+        addAll(loaded)
+    }
+    val all = remember(byCategory) { byCategory.values.flatten().map { it to searchKey(it.name) } }
+    val items = when (selected) {
+        SEARCH -> remember(query, all) {
+            val q = searchKey(query.trim())
+            if (q.length < 2) emptyList() else all.filter { q in it.second }.map { it.first }.take(300)
+        }
+        else -> byCategory[selected].orEmpty()
+    }
+    fun open(item: VodItem) {
+        lastPicked = item.id
+        if (series) detail = item
+        else playing = Playback(x.movieUrl(item), item.name, "movie-${item.id}", item.poster)
+    }
     val grid = rememberLazyGridState()
     LaunchedEffect(selected) { grid.scrollToItem(0) }
 
@@ -104,39 +172,60 @@ fun VodScreen(x: Xtream, series: Boolean, header: @Composable () -> Unit, autoFo
                             cat,
                             selected = cat.id == selected,
                             modifier = Modifier
-                                .then(if (cat == cats.first()) Modifier.focusRequester(firstCategory) else Modifier)
+                                .then(if (cat.id == selected) Modifier.focusRequester(firstCategory) else Modifier)
                                 .onFocusChanged { if (it.isFocused) selected = cat.id },
                         )
                     }
                 }
             }
+            Column(Modifier.weight(1f)) {
+            if (selected == SEARCH) {
+                Field("Titel suchen (mind. 2 Zeichen)", query, imeAction = ImeAction.Search) { query = it }
+                Spacer(Modifier.height(12.dp))
+            }
             LazyVerticalGrid(
                 columns = GridCells.Adaptive(150.dp),
                 state = grid,
-                modifier = Modifier.weight(1f),
                 contentPadding = PaddingValues(12.dp),
                 horizontalArrangement = Arrangement.spacedBy(20.dp),
                 verticalArrangement = Arrangement.spacedBy(20.dp),
             ) {
-                items(items, key = { it.id }) { item ->
-                    Poster(item, if (item.id == lastPicked) Modifier.focusRequester(pickedFocus) else Modifier) {
-                        lastPicked = item.id
-                        if (series) detail = item
-                        else playing = Playback(x.movieUrl(item), item.name, "movie-${item.id}")
+                fun focusMod(id: Int) = if (id == lastPicked) Modifier.focusRequester(pickedFocus) else Modifier
+                if (selected == CONTINUE) {
+                    items(inProgress, key = { it.playback.resumeKey }) { p ->
+                        val id = p.playback.resumeKey.hashCode()
+                        Poster(p.playback.title, p.playback.poster, focusMod(id), progress = if (p.duration > 0) p.position.toFloat() / p.duration else null) {
+                            lastPicked = id
+                            playing = p.playback
+                        }
+                    }
+                } else {
+                    items(items, key = { it.id }) { item ->
+                        Poster(item.name, item.poster, focusMod(item.id)) { open(item) }
                     }
                 }
+            }
             }
         }
         detail?.let { s ->
             SeriesDetail(
                 x, s,
                 blocked = playing != null,
-                onPlay = { ep -> playing = Playback(x.episodeUrl(ep), "${s.name} · S${ep.season} E${ep.num}", "ep-${ep.id}") },
+                onPlay = { ep, episodes ->
+                    fun pb(e: Episode) = Playback(x.episodeUrl(e), "${s.name} · S${e.season} E${e.num}", "ep-${e.id}", s.poster)
+                    playing = pb(ep).copy(following = episodes.drop(episodes.indexOf(ep) + 1).map(::pb))
+                },
                 onBack = { detail = null },
             )
         }
         playing?.let { p ->
-            VodPlayer(p.url, p.title, p.resumeKey, onExit = { playing = null })
+            key(p.resumeKey) { // neue Folge → neuer Player
+                VodPlayer(
+                    p,
+                    onEnded = { playing = p.following.firstOrNull()?.copy(following = p.following.drop(1)) },
+                    onExit = { playing = null },
+                )
+            }
         }
     }
     // Fokus zurück auf das zuletzt gewählte Poster, wenn Detail/Player geschlossen werden.
@@ -173,7 +262,7 @@ fun CategoryItem(
 }
 
 @Composable
-private fun Poster(item: VodItem, modifier: Modifier, onClick: () -> Unit) {
+private fun Poster(title: String, poster: String?, modifier: Modifier, progress: Float? = null, onClick: () -> Unit) {
     // Abstand > Vergrößerung beim Fokus, sonst überdeckt das Poster den Titel.
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Surface(
@@ -186,19 +275,30 @@ private fun Poster(item: VodItem, modifier: Modifier, onClick: () -> Unit) {
             ),
         ) {
             Box(Modifier.fillMaxSize().background(Color.White.copy(alpha = 0.05f)), contentAlignment = Alignment.Center) {
-                Text(item.name, Modifier.padding(12.dp), style = MaterialTheme.typography.bodySmall, maxLines = 4)
-                if (item.poster != null) {
-                    AsyncImage(item.poster, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+                Text(title, Modifier.padding(12.dp), style = MaterialTheme.typography.bodySmall, maxLines = 4)
+                if (poster != null) {
+                    AsyncImage(poster, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+                }
+                if (progress != null) {
+                    Box(Modifier.align(Alignment.BottomStart).fillMaxWidth().height(5.dp).background(Color.Black.copy(alpha = 0.6f))) {
+                        Box(Modifier.fillMaxWidth(progress.coerceIn(0f, 1f)).fillMaxHeight().background(Accent))
+                    }
                 }
             }
         }
-        Text(item.name, style = MaterialTheme.typography.bodySmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
+        Text(title, style = MaterialTheme.typography.bodySmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
     }
 }
 
 @Composable
 @OptIn(ExperimentalTvMaterial3Api::class) // FilterChip
-private fun SeriesDetail(x: Xtream, series: VodItem, blocked: Boolean, onPlay: (Episode) -> Unit, onBack: () -> Unit) {
+private fun SeriesDetail(
+    x: Xtream,
+    series: VodItem,
+    blocked: Boolean,
+    onPlay: (Episode, List<Episode>) -> Unit,
+    onBack: () -> Unit,
+) {
     val context = LocalContext.current
     var episodes by remember { mutableStateOf<List<Episode>?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
@@ -220,7 +320,7 @@ private fun SeriesDetail(x: Xtream, series: VodItem, blocked: Boolean, onPlay: (
     }
     BackHandler(enabled = !blocked, onBack = onBack)
 
-    val resume = remember(blocked) { context.getSharedPreferences("resume", Context.MODE_PRIVATE) }
+    val positions = remember(blocked) { ProgressStore(context).list("ep-").associate { it.playback.resumeKey to it.position } }
     val seasons = episodes.orEmpty().map { it.season }.distinct()
 
     Row(
@@ -259,11 +359,22 @@ private fun SeriesDetail(x: Xtream, series: VodItem, blocked: Boolean, onPlay: (
             val shown = episodes.orEmpty().filter { it.season == season }
             LazyColumn(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 items(shown, key = { it.id }) { ep ->
-                    val at = resume.getLong("ep-${ep.id}", 0)
+                    val at = positions["ep-${ep.id}"] ?: 0
+                    val (title, tags) = remember(ep) { cleanEpisodeTitle(ep.title, series.name) }
                     ListItem(
                         selected = false,
-                        onClick = { lastEpisode = ep.id; onPlay(ep) },
-                        headlineContent = { Text("${ep.num}. ${ep.title}", maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                        onClick = { lastEpisode = ep.id; onPlay(ep, episodes.orEmpty()) },
+                        headlineContent = {
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                Text(
+                                    if (title.isEmpty()) "Folge ${ep.num}" else "${ep.num}. $title",
+                                    Modifier.weight(1f, fill = false),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                                tags?.let { Badge(it) }
+                            }
+                        },
                         supportingContent = ep.plot?.let { { Text(it, maxLines = 1, overflow = TextOverflow.Ellipsis) } },
                         trailingContent = if (at > 0) { { Text("bei ${duration(at)}", color = Accent) } } else null,
                         modifier = when {
@@ -280,9 +391,11 @@ private fun SeriesDetail(x: Xtream, series: VodItem, blocked: Boolean, onPlay: (
 
 /** Player für Filme und Folgen: OK pausiert, Links/Rechts spult, merkt sich die Position. */
 @Composable
-fun VodPlayer(url: String, title: String, resumeKey: String, onExit: () -> Unit) {
+fun VodPlayer(playback: Playback, onEnded: () -> Unit, onExit: () -> Unit) {
     val context = LocalContext.current
-    val resume = remember { context.getSharedPreferences("resume", Context.MODE_PRIVATE) }
+    val store = remember { ProgressStore(context) }
+    val keyboard = LocalSoftwareKeyboardController.current
+    LaunchedEffect(Unit) { keyboard?.hide() } // offene Such-Tastatur würde sonst über dem Video wieder aufgehen
     var error by remember { mutableStateOf<String?>(null) }
     var buffering by remember { mutableStateOf(true) }
     var paused by remember { mutableStateOf(false) }
@@ -291,25 +404,22 @@ fun VodPlayer(url: String, title: String, resumeKey: String, onExit: () -> Unit)
     var overlayTick by remember { mutableIntStateOf(0) }
     var overlay by remember { mutableStateOf(true) }
 
-    val player = remember {
+    lateinit var player: ExoPlayer
+    fun save() = store.save(playback, player.currentPosition, player.duration)
+    player = remember {
         newPlayer(context).build().apply {
-            setMediaItem(MediaItem.fromUri(url))
-            seekTo(resume.getLong(resumeKey, 0))
+            setMediaItem(MediaItem.fromUri(playback.url))
+            seekTo(store.position(playback.resumeKey))
             prepare()
             playWhenReady = true
             addListener(object : MediaPlayer.Listener {
                 override fun onPlayerError(e: PlaybackException) { error = describe(e) }
-                override fun onPlaybackStateChanged(state: Int) { buffering = state == MediaPlayer.STATE_BUFFERING }
+                override fun onPlaybackStateChanged(state: Int) {
+                    buffering = state == MediaPlayer.STATE_BUFFERING
+                    if (state == MediaPlayer.STATE_ENDED) { save(); onEnded() }
+                }
             })
         }
-    }
-    fun save() {
-        val p = player.currentPosition
-        val d = player.duration
-        resume.edit().apply {
-            // Fast zu Ende oder kaum angefangen: nichts merken.
-            if (d > 0 && p > d * 0.95 || p < 30_000) remove(resumeKey) else putLong(resumeKey, p)
-        }.apply()
     }
     DisposableEffect(Unit) { onDispose { save(); player.release() } }
     LaunchedEffect(Unit) {
@@ -372,7 +482,7 @@ fun VodPlayer(url: String, title: String, resumeKey: String, onExit: () -> Unit)
                     .padding(horizontal = 48.dp, vertical = 32.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                Text((if (paused) "❚❚  " else "") + title, style = MaterialTheme.typography.headlineSmall, color = Color.White)
+                Text((if (paused) "❚❚  " else "") + playback.title, style = MaterialTheme.typography.headlineSmall, color = Color.White)
                 error?.let { Text("Fehler: $it · OK zum Neuladen", color = MaterialTheme.colorScheme.error) }
                 val progress = if (length > 0) (position.toFloat() / length).coerceIn(0f, 1f) else 0f
                 Box(Modifier.fillMaxWidth().height(4.dp).background(Color.White.copy(alpha = 0.2f))) {

@@ -16,6 +16,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.*
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import android.view.TextureView
@@ -79,7 +80,8 @@ fun Player(x: Xtream, channels: List<Channel>, start: Int, onChannel: (Channel) 
     LaunchedEffect(overlayTick) { overlay = true; delay(4_000); overlay = false }
 
     val focus = remember { FocusRequester() }
-    LaunchedEffect(Unit) { focus.requestFocus() }
+    val keyboard = LocalSoftwareKeyboardController.current
+    LaunchedEffect(Unit) { keyboard?.hide(); focus.requestFocus() }
     BackHandler { onExit(index) }
 
     Box(

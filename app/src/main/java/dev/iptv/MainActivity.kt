@@ -12,6 +12,7 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -148,14 +149,16 @@ fun LoginScreen(onLogin: (Xtream) -> Unit) {
 }
 
 @Composable
-private fun Field(
+fun Field(
     label: String,
     value: String,
     type: KeyboardType = KeyboardType.Text,
     password: Boolean = false,
+    imeAction: ImeAction = ImeAction.Next,
     onChange: (String) -> Unit,
 ) {
     var focused by remember { mutableStateOf(false) }
+    val keyboard = LocalSoftwareKeyboardController.current
     Column(Modifier.width(480.dp)) {
         Text(label, style = MaterialTheme.typography.labelMedium)
         BasicTextField(
@@ -165,7 +168,8 @@ private fun Field(
             textStyle = TextStyle(color = Color.White, fontSize = 18.sp),
             cursorBrush = SolidColor(Accent),
             visualTransformation = if (password) PasswordVisualTransformation() else VisualTransformation.None,
-            keyboardOptions = KeyboardOptions(keyboardType = type, imeAction = ImeAction.Next),
+            keyboardOptions = KeyboardOptions(keyboardType = type, imeAction = imeAction),
+            keyboardActions = KeyboardActions(onSearch = { keyboard?.hide() }),
             modifier = Modifier
                 .fillMaxWidth()
                 .onFocusChanged { focused = it.isFocused }
