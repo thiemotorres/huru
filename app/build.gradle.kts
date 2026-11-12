@@ -2,13 +2,14 @@ plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
+    id("app.cash.paparazzi") version "1.3.5" // JVM screenshot rendering for store/README mockups
 }
 
 android {
-    namespace = "dev.iptv"
+    namespace = "io.github.thiemotorres.huru"
     compileSdk = 35
     defaultConfig {
-        applicationId = "dev.iptv"
+        applicationId = "io.github.thiemotorres.huru"
         minSdk = 28 // Fire OS 7+
         targetSdk = 34
         versionCode = 1
@@ -40,5 +41,6 @@ dependencies {
     implementation("androidx.media3:media3-exoplayer:1.5.1")
     implementation("io.coil-kt:coil-compose:2.7.0")
     testImplementation("junit:junit:4.13.2")
-    testImplementation("org.json:json:20240303") // echte org.json statt Android-Stubs in Unit-Tests
+    testImplementation("org.json:json:20240303")
+    testImplementation("io.coil-kt:coil-test:2.7.0") // echte org.json statt Android-Stubs in Unit-Tests
 }

@@ -1,4 +1,4 @@
-package dev.iptv
+package io.github.thiemotorres.huru
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
@@ -136,8 +136,8 @@ fun VideoSurface(player: ExoPlayer) {
 val hhmm = SimpleDateFormat("HH:mm", Locale.GERMANY)
 
 @Composable
-private fun InfoBar(channel: Channel, epg: List<Programme>, error: String?) {
-    val now = epg.firstOrNull()
+internal fun InfoBar(channel: Channel, epg: List<Programme>, error: String?, now: Long = System.currentTimeMillis()) {
+    val current = epg.firstOrNull()
     Row(
         Modifier
             .fillMaxWidth()
@@ -151,9 +151,9 @@ private fun InfoBar(channel: Channel, epg: List<Programme>, error: String?) {
             Text("${channel.num}  ${channel.label}", style = MaterialTheme.typography.headlineSmall, color = Color.White)
             if (error != null) {
                 Text("Stream error: $error · press OK to retry", color = MaterialTheme.colorScheme.error)
-            } else if (now != null) {
-                Text("${hhmm.format(Date(now.start))}–${hhmm.format(Date(now.end))}  ${now.title}", color = Color.White)
-                val progress = ((System.currentTimeMillis() - now.start).toFloat() / (now.end - now.start)).coerceIn(0f, 1f)
+            } else if (current != null) {
+                Text("${hhmm.format(Date(current.start))}–${hhmm.format(Date(current.end))}  ${current.title}", color = Color.White)
+                val progress = ((now - current.start).toFloat() / (current.end - current.start)).coerceIn(0f, 1f)
                 Box(Modifier.fillMaxWidth().height(4.dp).background(Color.White.copy(alpha = 0.2f))) {
                     Box(Modifier.fillMaxWidth(progress).fillMaxHeight().background(Accent))
                 }

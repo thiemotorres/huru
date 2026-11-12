@@ -1,4 +1,4 @@
-package dev.iptv
+package io.github.thiemotorres.huru
 
 import android.net.Uri
 import android.util.Base64

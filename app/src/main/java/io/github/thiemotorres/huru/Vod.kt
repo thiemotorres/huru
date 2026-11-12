@@ -1,4 +1,4 @@
-package dev.iptv
+package io.github.thiemotorres.huru
 
 import android.content.Context
 import androidx.activity.compose.BackHandler
@@ -262,7 +262,7 @@ fun CategoryItem(
 }
 
 @Composable
-private fun Poster(title: String, poster: String?, modifier: Modifier, progress: Float? = null, onClick: () -> Unit) {
+internal fun Poster(title: String, poster: String?, modifier: Modifier, progress: Float? = null, onClick: () -> Unit) {
     // Spacing > focus scale-up, otherwise the poster covers the title.
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Surface(

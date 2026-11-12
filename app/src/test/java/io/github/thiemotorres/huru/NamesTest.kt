@@ -1,4 +1,4 @@
-package dev.iptv
+package io.github.thiemotorres.huru
 
 import org.junit.Assert.assertEquals
 import org.junit.Test

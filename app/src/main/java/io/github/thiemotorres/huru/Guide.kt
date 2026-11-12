@@ -1,4 +1,4 @@
-package dev.iptv
+package io.github.thiemotorres.huru
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background

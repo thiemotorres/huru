@@ -1,4 +1,4 @@
-package dev.iptv
+package io.github.thiemotorres.huru
 
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.Canvas
@@ -60,12 +60,18 @@ fun Splash(onDone: () -> Unit) {
         1f, 0.4f, infiniteRepeatable(tween(200), RepeatMode.Reverse), label = "flap",
     )
 
+    SplashFrame(rise.value, fly.value, flap, word.value)
+}
+
+/** One frame of the splash; also used to render a still for screenshots. */
+@Composable
+internal fun SplashFrame(rise: Float, fly: Float, flap: Float, word: Float) {
     Box(Modifier.fillMaxSize().background(Plum), contentAlignment = Alignment.Center) {
         Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(28.dp)) {
             Canvas(Modifier.size(264.dp, 192.dp)) {
-                scene(rise.value, fly.value, flap)
+                scene(rise, fly, flap)
             }
-            Image(painterResource(R.drawable.wordmark), contentDescription = "Huru", Modifier.height(56.dp).alpha(word.value))
+            Image(painterResource(R.drawable.wordmark), contentDescription = "Huru", Modifier.height(56.dp).alpha(word))
         }
     }
 }
