@@ -252,6 +252,9 @@ fun BrowseScreen(
         favorites = if (id in favorites) favorites - id else favorites + id
         favPrefs.edit().putStringSet("ids", favorites).apply()
     }
+    // Recently watched channel ids, newest first.
+    fun readRecent() = lastPrefs.getString("recent", "")!!.split(',').mapNotNull { it.toIntOrNull() }
+    var recent by remember { mutableStateOf(readRecent()) }
     val catPrefs = context.sourcePrefs("categories", x.account)
     var hidden by remember { mutableStateOf(catPrefs.getStringSet("hidden", emptySet())!!.toSet()) }
     var showHidden by remember { mutableStateOf(false) }
@@ -265,7 +268,11 @@ fun BrowseScreen(
     var returnTo by remember { mutableStateOf<Int?>(null) }
     val epg = remember { mutableStateMapOf<Int, List<Programme>>() } // stream_id -> programmes, cached for the session
     fun channelsOf(cat: String?) =
-        if (cat == FAVORITES) all.filter { it.id.toString() in favorites } else byCategory[cat].orEmpty()
+        when (cat) {
+            FAVORITES -> all.filter { it.id.toString() in favorites }
+            RECENT -> all.associateBy { it.id }.let { byId -> recent.mapNotNull { byId[it] } }
+            else -> byCategory[cat].orEmpty()
+        }
     val loadingFailed = stringResource(R.string.loading_failed)
 
     LaunchedEffect(x) {
@@ -305,13 +312,15 @@ fun BrowseScreen(
     }
     val hiddenCount = loaded.count { it.id in hidden }
     val favoritesLabel = stringResource(R.string.favorites)
+    val recentLabel = stringResource(R.string.recent)
     val hiddenLabel = if (showHidden) stringResource(R.string.hide_hidden) else stringResource(R.string.hidden_count, hiddenCount)
     val cats = buildList {
         if (favorites.isNotEmpty()) add(Category(FAVORITES, favoritesLabel))
+        if (recent.isNotEmpty()) add(Category(RECENT, recentLabel))
         addAll(if (showHidden) loaded else loaded.filter { it.id !in hidden })
         if (hiddenCount > 0) add(Category(TOGGLE_HIDDEN, hiddenLabel))
     }
-    val channels = remember(selected, all, favorites) { channelsOf(selected) }
+    val channels = remember(selected, all, favorites, recent) { channelsOf(selected) }
     val firstCategory = remember { FocusRequester() }
     val channelFocus = remember { FocusRequester() }
     val channelList = rememberLazyListState()
@@ -331,7 +340,7 @@ fun BrowseScreen(
                 Spacer(Modifier.height(12.dp))
                 LazyColumn(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     itemsIndexed(cats, key = { _, c -> c.id }) { i, cat ->
-                        val special = cat.id == FAVORITES || cat.id == TOGGLE_HIDDEN
+                        val special = cat.id == FAVORITES || cat.id == RECENT || cat.id == TOGGLE_HIDDEN
                         CategoryItem(
                             cat,
                             selected = cat.id == selected,
@@ -377,13 +386,24 @@ fun BrowseScreen(
             Player(
                 x, channels, start,
                 onChannel = { lastPrefs.edit().putString("category", selected).putInt("channel", it.id).apply() },
-                onExit = { last -> playing = null; returnTo = last },
+                onWatched = { ch ->
+                    // Saved right away, shown on exit: reordering the list under the player would shift returnTo.
+                    val ids = (listOf(ch.id) + readRecent().filter { it != ch.id }).take(10)
+                    lastPrefs.edit().putString("recent", ids.joinToString(",")).apply()
+                },
+                onExit = { last ->
+                    val id = channels.getOrNull(last)?.id
+                    recent = readRecent()
+                    playing = null
+                    returnTo = channelsOf(selected).indexOfFirst { it.id == id }.takeIf { it >= 0 } ?: last
+                },
             )
         }
     }
 }
 
 private const val FAVORITES = "__favorites"
+private const val RECENT = "__recent"
 private const val TOGGLE_HIDDEN = "__toggle_hidden"
 
 /** Small outlined tag, e.g. a country prefix or quality. */

@@ -21,7 +21,19 @@ import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import android.view.TextureView
+import androidx.compose.foundation.focusGroup
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.ui.ExperimentalComposeUiApi
+import androidx.compose.ui.focus.focusProperties
+import androidx.compose.ui.text.style.TextAlign
+import androidx.media3.common.C
 import androidx.media3.common.MediaItem
+import androidx.media3.common.TrackSelectionOverride
+import androidx.media3.common.Tracks
+import androidx.media3.common.text.CueGroup
+import androidx.tv.material3.ListItem
+import kotlinx.coroutines.android.awaitFrame
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player as MediaPlayer
 import androidx.media3.datasource.DefaultDataSource
@@ -40,7 +52,7 @@ import java.util.Locale
 /** Full-screen live player. Up/Down (or CH+/CH−) zaps within the category, OK shows info, Back exits. */
 @Composable
 @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class) // DefaultLoadControl
-fun Player(x: Xtream, channels: List<Channel>, start: Int, onChannel: (Channel) -> Unit, onExit: (Int) -> Unit) {
+fun Player(x: Xtream, channels: List<Channel>, start: Int, onChannel: (Channel) -> Unit, onWatched: (Channel) -> Unit, onExit: (Int) -> Unit) {
     val context = LocalContext.current
     // Pin the list on start: a background refresh must not switch the channel mid-viewing.
     val channels = remember { channels }
@@ -51,6 +63,7 @@ fun Player(x: Xtream, channels: List<Channel>, start: Int, onChannel: (Channel) 
     var overlayTick by remember { mutableIntStateOf(0) }
     var overlay by remember { mutableStateOf(true) }
     var paused by remember { mutableStateOf(false) }
+    var menu by remember { mutableStateOf(false) }
     val channel = channels[index]
 
     val player = remember {
@@ -85,6 +98,8 @@ fun Player(x: Xtream, channels: List<Channel>, start: Int, onChannel: (Channel) 
         overlayTick++
         epg = emptyList()
         epg = runCatching { x.shortEpg(channel) }.getOrDefault(emptyList())
+        delay(10_000) // only channels you stay on count as watched, not every zap
+        onWatched(channel)
     }
     LaunchedEffect(overlayTick) { overlay = true; delay(4_000); overlay = false }
 
@@ -98,8 +113,9 @@ fun Player(x: Xtream, channels: List<Channel>, start: Int, onChannel: (Channel) 
             .fillMaxSize()
             .background(Color.Black)
             .onKeyEvent { e ->
-                if (e.type != KeyEventType.KeyDown) return@onKeyEvent false
+                if (e.type != KeyEventType.KeyDown || menu) return@onKeyEvent false
                 when (e.key) {
+                    Key.Menu -> { menu = true; true }
                     Key.DirectionUp, Key.ChannelUp -> { index = (index - 1 + channels.size) % channels.size; true }
                     Key.DirectionDown, Key.ChannelDown -> { index = (index + 1) % channels.size; true }
                     Key.DirectionCenter, Key.Enter -> { if (error != null) play(); overlayTick++; true }
@@ -126,6 +142,7 @@ fun Player(x: Xtream, channels: List<Channel>, start: Int, onChannel: (Channel) 
         ) {
             InfoBar(channel, epg, error, paused = paused)
         }
+        if (menu) TrackMenu(player, { menu = false; focus.requestFocus() }, Modifier.align(Alignment.CenterEnd))
     }
 }
 
@@ -143,11 +160,109 @@ fun describe(e: PlaybackException): String =
 
 @Composable
 fun VideoSurface(player: ExoPlayer) {
-    AndroidView(
-        // TextureView instead of PlayerView/SurfaceView: the SurfaceView ends up behind the Compose layer (audio, no picture).
-        factory = { TextureView(it).apply { isFocusable = false; keepScreenOn = true; player.setVideoTextureView(this) } },
-        modifier = Modifier.fillMaxSize(),
+    // Subtitles are drawn by hand: the TextureView has no subtitle layer.
+    var cues by remember { mutableStateOf("") }
+    DisposableEffect(player) {
+        val listener = object : MediaPlayer.Listener {
+            override fun onCues(group: CueGroup) { cues = group.cues.mapNotNull { it.text }.joinToString("\n") }
+        }
+        player.addListener(listener)
+        onDispose { player.removeListener(listener) }
+    }
+    Box(Modifier.fillMaxSize()) {
+        AndroidView(
+            // TextureView instead of PlayerView/SurfaceView: the SurfaceView ends up behind the Compose layer (audio, no picture).
+            factory = { TextureView(it).apply { isFocusable = false; keepScreenOn = true; player.setVideoTextureView(this) } },
+            modifier = Modifier.fillMaxSize(),
+        )
+        if (cues.isNotBlank()) Text(
+            cues,
+            Modifier.align(Alignment.BottomCenter).padding(bottom = 56.dp, start = 96.dp, end = 96.dp)
+                .background(Color.Black.copy(alpha = 0.6f)).padding(horizontal = 12.dp, vertical = 4.dp),
+            color = Color.White, style = MaterialTheme.typography.headlineSmall, textAlign = TextAlign.Center,
+        )
+    }
+}
+
+/** Audio and subtitle choice (Menu key), shared by the live and VOD player. Traps focus until closed. */
+@Composable
+@OptIn(ExperimentalComposeUiApi::class) // focusProperties exit
+fun TrackMenu(player: ExoPlayer, onClose: () -> Unit, modifier: Modifier = Modifier) {
+    var tracks by remember { mutableStateOf(player.currentTracks) }
+    DisposableEffect(player) {
+        val listener = object : MediaPlayer.Listener {
+            override fun onTracksChanged(t: Tracks) { tracks = t }
+        }
+        player.addListener(listener)
+        onDispose { player.removeListener(listener) }
+    }
+    val first = remember { FocusRequester() }
+    LaunchedEffect(Unit) { awaitFrame(); runCatching { first.requestFocus() } }
+
+    fun select(group: Tracks.Group?, i: Int, type: Int) {
+        player.trackSelectionParameters = player.trackSelectionParameters.buildUpon().run {
+            if (group == null) setTrackTypeDisabled(type, true)
+            else setOverrideForType(TrackSelectionOverride(group.mediaTrackGroup, i)).setTrackTypeDisabled(type, false)
+        }.build()
+    }
+    fun options(type: Int) = tracks.groups.filter { it.type == type }
+        .flatMap { g -> (0 until g.length).filter { g.isTrackSupported(it) }.map { g to it } }
+    val audio = options(C.TRACK_TYPE_AUDIO)
+    val text = options(C.TRACK_TYPE_TEXT)
+    val audioLabels = trackLabels(audio)
+    val textLabels = trackLabels(text)
+
+    @Composable
+    fun Option(label: String, selected: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) = ListItem(
+        selected = selected, onClick = onClick, modifier = modifier,
+        headlineContent = { Text(label) },
+        trailingContent = if (selected) { { Text("✓") } } else null,
     )
+
+    LazyColumn(
+        modifier
+            .fillMaxHeight().width(420.dp)
+            .background(Color.Black.copy(alpha = 0.85f))
+            .padding(32.dp)
+            // Compose turns Back into a focus exit, which the trap below cancels – so close here.
+            .onPreviewKeyEvent { e -> if (e.key == Key.Back && e.type == KeyEventType.KeyDown) { onClose(); true } else false }
+            .focusProperties { exit = { FocusRequester.Cancel } }
+            .focusGroup(),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        item { Text(stringResource(R.string.audio), style = MaterialTheme.typography.titleLarge, color = Color.White) }
+        itemsIndexed(audio) { n, (g, i) ->
+            Option(audioLabels[n], g.isTrackSelected(i), { select(g, i, C.TRACK_TYPE_AUDIO) }, if (n == 0) Modifier.focusRequester(first) else Modifier)
+        }
+        item { Text(stringResource(R.string.subtitles), style = MaterialTheme.typography.titleLarge, color = Color.White, modifier = Modifier.padding(top = 16.dp)) }
+        item {
+            Option(
+                stringResource(R.string.subtitles_off), text.none { (g, i) -> g.isTrackSelected(i) }, { select(null, 0, C.TRACK_TYPE_TEXT) },
+                if (audio.isEmpty()) Modifier.focusRequester(first) else Modifier,
+            )
+        }
+        itemsIndexed(text) { n, (g, i) -> Option(textLabels[n], g.isTrackSelected(i), { select(g, i, C.TRACK_TYPE_TEXT) }) }
+    }
+}
+
+/** "English", "English 5.1", "English CC", … – numbered where names still collide. */
+@Composable
+private fun trackLabels(options: List<Pair<Tracks.Group, Int>>): List<String> {
+    val forced = stringResource(R.string.track_forced)
+    val names = options.mapIndexed { n, (g, i) ->
+        val f = g.getTrackFormat(i)
+        val name = f.label ?: f.language?.takeIf { it != "und" }?.let { Locale.forLanguageTag(it).displayLanguage }
+            ?: stringResource(R.string.track_n, n + 1)
+        listOfNotNull(
+            name,
+            f.channelCount.takeIf { it > 2 }?.let { "${it - 1}.1" },
+            "CC".takeIf { f.sampleMimeType?.contains("cea") == true },
+            forced.takeIf { f.selectionFlags and C.SELECTION_FLAG_FORCED != 0 },
+        ).joinToString(" ")
+    }
+    return names.mapIndexed { n, name ->
+        if (names.count { it == name } > 1) "$name (${names.take(n + 1).count { it == name }})" else name
+    }
 }
 
 val hhmm = SimpleDateFormat("HH:mm", Locale.GERMANY)

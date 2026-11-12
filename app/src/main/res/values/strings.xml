@@ -57,4 +57,11 @@
     <string name="source_delete_confirm">Delete?</string>
     <string name="source_add">+ Add source</string>
     <string name="manage_sources">Manage sources</string>
+    <string name="recent">🕘 Recently watched</string>
+    <string name="audio">Audio</string>
+    <string name="subtitles">Subtitles</string>
+    <string name="subtitles_off">Off</string>
+    <string name="track_n">Track %1$d</string>
+    <string name="tracks_hint">≡ Audio &amp; subtitles</string>
+    <string name="track_forced">forced</string>
 </resources>

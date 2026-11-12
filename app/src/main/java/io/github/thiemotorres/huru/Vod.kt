@@ -408,6 +408,7 @@ fun VodPlayer(playback: Playback, store: ProgressStore, onEnded: () -> Unit, onE
     var length by remember { mutableLongStateOf(0L) }
     var overlayTick by remember { mutableIntStateOf(0) }
     var overlay by remember { mutableStateOf(true) }
+    var menu by remember { mutableStateOf(false) }
 
     lateinit var player: ExoPlayer
     fun save() = store.save(playback, player.currentPosition, player.duration)
@@ -453,8 +454,9 @@ fun VodPlayer(playback: Playback, store: ProgressStore, onEnded: () -> Unit, onE
             .fillMaxSize()
             .background(Color.Black)
             .onKeyEvent { e ->
-                if (e.type != KeyEventType.KeyDown) return@onKeyEvent false
+                if (e.type != KeyEventType.KeyDown || menu) return@onKeyEvent false
                 when (e.key) {
+                    Key.Menu -> { menu = true; true }
                     Key.DirectionCenter, Key.Enter, Key.MediaPlayPause, Key.MediaPlay, Key.MediaPause -> {
                         if (error != null) { error = null; player.prepare() }
                         player.playWhenReady = !player.playWhenReady
@@ -494,12 +496,13 @@ fun VodPlayer(playback: Playback, store: ProgressStore, onEnded: () -> Unit, onE
                     Box(Modifier.fillMaxWidth(progress).fillMaxHeight().background(Accent))
                 }
                 Text(
-                    "${duration(position)} / ${duration(length)}   ·   ◀ 10 s   ▶ 30 s",
+                    "${duration(position)} / ${duration(length)}   ·   ◀ 10 s   ▶ 30 s   ·   " + stringResource(R.string.tracks_hint),
                     style = MaterialTheme.typography.bodySmall,
                     color = Color.White.copy(alpha = 0.7f),
                 )
             }
         }
+        if (menu) TrackMenu(player, { menu = false; focus.requestFocus() }, Modifier.align(Alignment.CenterEnd))
     }
 }
 

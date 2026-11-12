@@ -56,4 +56,11 @@
     <string name="source_delete_confirm">Wirklich?</string>
     <string name="source_add">+ Quelle hinzufügen</string>
     <string name="manage_sources">Quellen verwalten</string>
+    <string name="recent">🕘 Zuletzt gesehen</string>
+    <string name="audio">Audio</string>
+    <string name="subtitles">Untertitel</string>
+    <string name="subtitles_off">Aus</string>
+    <string name="track_n">Spur %1$d</string>
+    <string name="tracks_hint">≡ Audio &amp; Untertitel</string>
+    <string name="track_forced">erzwungen</string>
 </resources>
