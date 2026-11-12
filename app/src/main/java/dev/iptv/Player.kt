@@ -102,7 +102,7 @@ fun Player(x: Xtream, channels: List<Channel>, start: Int, onChannel: (Channel) 
     }
 }
 
-private val hhmm = SimpleDateFormat("HH:mm", Locale.GERMANY)
+val hhmm = SimpleDateFormat("HH:mm", Locale.GERMANY)
 
 @Composable
 private fun InfoBar(channel: Channel, epg: List<Programme>, error: String?) {

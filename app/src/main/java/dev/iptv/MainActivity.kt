@@ -37,6 +37,7 @@ import androidx.compose.ui.draw.clip
 import androidx.tv.material3.*
 import coil.compose.AsyncImage
 import kotlinx.coroutines.android.awaitFrame
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
@@ -154,6 +155,7 @@ fun BrowseScreen(x: Xtream, onLogout: () -> Unit) {
     var selected by remember { mutableStateOf<String?>(null) }
     var playing by remember { mutableStateOf<Int?>(null) } // Index in der aktuellen Kategorie
     var returnTo by remember { mutableStateOf<Int?>(null) }
+    val epg = remember { mutableStateMapOf<Int, List<Programme>>() } // stream_id -> Sendungen, Cache für die Sitzung
     fun channelsOf(cat: String?) =
         if (cat == FAVORITES) all.filter { it.id.toString() in favorites } else byCategory[cat].orEmpty()
 
@@ -200,7 +202,7 @@ fun BrowseScreen(x: Xtream, onLogout: () -> Unit) {
 
     Box(Modifier.fillMaxSize()) {
         Row(Modifier.fillMaxSize().padding(24.dp), horizontalArrangement = Arrangement.spacedBy(24.dp)) {
-            LazyColumn(Modifier.width(300.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            LazyColumn(Modifier.width(260.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 itemsIndexed(cats, key = { _, c -> c.id }) { i, cat ->
                     ListItem(
                         selected = cat.id == selected,
@@ -212,17 +214,31 @@ fun BrowseScreen(x: Xtream, onLogout: () -> Unit) {
                     )
                 }
             }
-            LazyColumn(Modifier.weight(1f), state = channelList, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                itemsIndexed(channels, key = { _, c -> c.id }) { i, ch ->
-                    ListItem(
-                        selected = false,
-                        onClick = { returnTo = null; playing = i },
-                        onLongClick = { toggleFavorite(ch) },
-                        trailingContent = { if (ch.id.toString() in favorites) Text("★", color = Accent) },
-                        headlineContent = { Text(ch.name, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                        leadingContent = { Logo(ch) },
-                        modifier = if (i == returnTo) Modifier.focusRequester(channelFocus) else Modifier,
-                    )
+            val now = rememberNow()
+            val start = guideStart(now)
+            Column(Modifier.weight(1f)) {
+                GuideHeader(start)
+                LazyColumn(state = channelList, verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    itemsIndexed(channels, key = { _, c -> c.id }) { i, ch ->
+                        LaunchedEffect(ch.id, start) {
+                            val cached = epg[ch.id]
+                            // Neu laden, wenn noch nichts da ist oder alles Gecachte vorbei ist.
+                            if (cached == null || cached.isNotEmpty() && cached.last().end < start + GUIDE_WINDOW) {
+                                delay(300) // schnelles Scrollen bricht ab, bevor angefragt wird
+                                epg[ch.id] = runCatching { x.shortEpg(ch, limit = 10) }.getOrDefault(emptyList())
+                            }
+                        }
+                        GuideRow(
+                            channel = ch,
+                            programmes = epg[ch.id],
+                            start = start,
+                            now = now,
+                            favorite = ch.id.toString() in favorites,
+                            onClick = { returnTo = null; playing = i },
+                            onLongClick = { toggleFavorite(ch) },
+                            modifier = if (i == returnTo) Modifier.focusRequester(channelFocus) else Modifier,
+                        )
+                    }
                 }
             }
         }
