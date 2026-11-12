@@ -81,4 +81,11 @@ class SourcesTest {
         assertEquals("huru-demo.feto.dev", hostOf("https://huru-demo.feto.dev"))
         assertEquals("10.0.0.5", hostOf("10.0.0.5:25461"))
     }
+
+    @Test fun upcomingSkipsEndedProgrammes() {
+        // Panel answer that starts yesterday evening: only the running and next programme count.
+        val list = listOf(Programme("old", 0, 100), Programme("next", 300, 400), Programme("now", 100, 300), Programme("later", 400, 500))
+        assertEquals(listOf("now", "next"), upcoming(list, now = 150, limit = 2).map { it.title })
+        assertEquals(emptyList<String>(), upcoming(list, now = 600, limit = 2).map { it.title })
+    }
 }

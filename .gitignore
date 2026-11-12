@@ -12,3 +12,4 @@ node_modules/
 brag-output*/
 store/amazon/*.apk
 .DS_Store
+.env

@@ -41,6 +41,10 @@ fun flagOf(code: String): String? {
 private val QUALITY_SUFFIX = Regex("""\s+[\[(]?(UHD|4K|FHD|HD|SD|LOW|HEVC)[\])]?\s*$""", RegexOption.IGNORE_CASE)
 data class Programme(val title: String, val start: Long, val end: Long)
 
+/** Programmes that have not ended yet, in order: the running one first. */
+fun upcoming(programmes: List<Programme>, now: Long, limit: Int): List<Programme> =
+    programmes.filter { it.end > now }.sortedBy { it.start }.take(limit)
+
 /** Movie or series in a list. ext only for movies (stream file extension). */
 data class VodItem(val id: Int, val name: String, val poster: String?, val categoryId: String, val ext: String, val plot: String?)
 data class Episode(val id: String, val season: Int, val num: Int, val title: String, val ext: String, val plot: String?)
@@ -86,15 +90,27 @@ class Xtream(val account: Account) {
             )
         }
 
-    suspend fun shortEpg(channel: Channel, limit: Int = 2): List<Programme> =
-        JSONObject(get("&action=get_short_epg&stream_id=${channel.id}&limit=$limit"))
-            .optJSONArray("epg_listings")?.objects().orEmpty().map {
-                Programme(
-                    title = String(Base64.decode(it.optString("title"), Base64.DEFAULT)),
-                    start = it.optLong("start_timestamp") * 1000,
-                    end = it.optLong("stop_timestamp") * 1000,
-                )
-            }
+    /**
+     * Current and next programmes. Some panels ignore the limit and start hours in the past, so ended ones are
+     * dropped; if too few are left, the full table (a few days) fills in.
+     */
+    suspend fun shortEpg(channel: Channel, limit: Int = 2): List<Programme> {
+        val now = System.currentTimeMillis()
+        val short = upcoming(epg(get("&action=get_short_epg&stream_id=${channel.id}&limit=$limit")), now, limit)
+        if (short.size >= limit) return short
+        // ponytail: channels without any EPG cost a second request each time; cache "no EPG" if that shows up
+        val full = upcoming(epg(get("&action=get_simple_data_table&stream_id=${channel.id}")), now, limit)
+        return if (full.size > short.size) full else short
+    }
+
+    private fun epg(json: String): List<Programme> =
+        JSONObject(json).optJSONArray("epg_listings")?.objects().orEmpty().map {
+            Programme(
+                title = String(Base64.decode(it.optString("title"), Base64.DEFAULT)),
+                start = it.optLong("start_timestamp") * 1000,
+                end = it.optLong("stop_timestamp") * 1000,
+            )
+        }
 
     fun parseMovies(json: String): List<VodItem> =
         JSONArray(json).objects().map {
