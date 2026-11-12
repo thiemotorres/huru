@@ -33,6 +33,7 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.tv.material3.*
 import coil.compose.AsyncImage
@@ -154,6 +155,13 @@ fun BrowseScreen(x: Xtream, onLogout: () -> Unit) {
         favorites = if (id in favorites) favorites - id else favorites + id
         favPrefs.edit().putStringSet("ids", favorites).apply()
     }
+    val catPrefs = context.getSharedPreferences("categories", Context.MODE_PRIVATE)
+    var hidden by remember { mutableStateOf(catPrefs.getStringSet("hidden", emptySet())!!.toSet()) }
+    var showHidden by remember { mutableStateOf(false) }
+    fun toggleHidden(cat: Category) {
+        hidden = if (cat.id in hidden) hidden - cat.id else hidden + cat.id
+        catPrefs.edit().putStringSet("hidden", hidden).apply()
+    }
     var error by remember { mutableStateOf<String?>(null) }
     var selected by remember { mutableStateOf<String?>(null) }
     var playing by remember { mutableStateOf<Int?>(null) } // Index in der aktuellen Kategorie
@@ -205,7 +213,12 @@ fun BrowseScreen(x: Xtream, onLogout: () -> Unit) {
         }
         return
     }
-    val cats = if (favorites.isEmpty()) loaded else listOf(Category(FAVORITES, "★ Favoriten")) + loaded
+    val hiddenCount = loaded.count { it.id in hidden }
+    val cats = buildList {
+        if (favorites.isNotEmpty()) add(Category(FAVORITES, "★ Favoriten"))
+        addAll(if (showHidden) loaded else loaded.filter { it.id !in hidden })
+        if (hiddenCount > 0) add(Category(TOGGLE_HIDDEN, if (showHidden) "Ausgeblendete verbergen" else "$hiddenCount ausgeblendet"))
+    }
     val channels = remember(selected, all, favorites) { channelsOf(selected) }
     val firstCategory = remember { FocusRequester() }
     val channelFocus = remember { FocusRequester() }
@@ -223,20 +236,31 @@ fun BrowseScreen(x: Xtream, onLogout: () -> Unit) {
         Row(Modifier.fillMaxSize().padding(24.dp), horizontalArrangement = Arrangement.spacedBy(24.dp)) {
             LazyColumn(Modifier.width(260.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 itemsIndexed(cats, key = { _, c -> c.id }) { i, cat ->
+                    val special = cat.id == FAVORITES || cat.id == TOGGLE_HIDDEN
                     ListItem(
                         selected = cat.id == selected,
-                        onClick = {},
-                        headlineContent = { Text(cat.name, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                        onClick = { if (cat.id == TOGGLE_HIDDEN) showHidden = !showHidden },
+                        onLongClick = { if (!special) toggleHidden(cat) }, // Kategorie aus-/einblenden
+                        headlineContent = {
+                            Row(
+                                Modifier.alpha(if (cat.id in hidden || cat.id == TOGGLE_HIDDEN) 0.45f else 1f),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            ) {
+                                cat.prefix?.let { Badge(it) }
+                                Text(cat.label, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            }
+                        },
                         modifier = Modifier
                             .then(if (i == 0) Modifier.focusRequester(firstCategory) else Modifier)
-                            .onFocusChanged { if (it.isFocused) selected = cat.id },
+                            .onFocusChanged { if (it.isFocused && cat.id != TOGGLE_HIDDEN) selected = cat.id },
                     )
                 }
             }
             val now = rememberNow()
             val start = guideStart(now)
             Column(Modifier.weight(1f)) {
-                GuideHeader(start)
+                GuideHeader(start, now)
                 LazyColumn(state = channelList, verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     itemsIndexed(channels, key = { _, c -> c.id }) { i, ch ->
                         LaunchedEffect(ch.id, start) {
@@ -272,6 +296,20 @@ fun BrowseScreen(x: Xtream, onLogout: () -> Unit) {
 }
 
 private const val FAVORITES = "__favorites"
+private const val TOGGLE_HIDDEN = "__toggle_hidden"
+
+/** Kleines umrandetes Kürzel, z. B. Länderpräfix oder Qualität. */
+@Composable
+fun Badge(text: String, modifier: Modifier = Modifier) {
+    Text(
+        text,
+        modifier
+            .border(1.dp, LocalContentColor.current.copy(alpha = 0.4f), RoundedCornerShape(4.dp))
+            .padding(horizontal = 5.dp, vertical = 1.dp),
+        style = MaterialTheme.typography.labelSmall,
+        color = LocalContentColor.current.copy(alpha = 0.7f),
+    )
+}
 
 @Composable
 fun Logo(ch: Channel, size: Int = 40) {

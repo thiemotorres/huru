@@ -11,8 +11,21 @@ import java.net.HttpURLConnection
 import java.net.URL
 
 data class Account(val server: String, val user: String, val pass: String)
-data class Category(val id: String, val name: String)
-data class Channel(val id: Int, val num: Int, val name: String, val logo: String?, val categoryId: String)
+data class Category(val id: String, val name: String) {
+    private val match = COUNTRY_PREFIX.matchEntire(name)
+    /** Länderkürzel aus "PT | Desporto" → "PT". */
+    val prefix: String? = match?.groupValues?.get(1)
+    val label: String = match?.groupValues?.get(2) ?: name
+}
+
+data class Channel(val id: Int, val num: Int, val name: String, val logo: String?, val categoryId: String) {
+    /** Qualitätsangabe am Namensende: "SPORT TV 1 FHD" → "FHD". */
+    val quality: String? = QUALITY_SUFFIX.find(name)?.groupValues?.get(1)?.uppercase()
+    val label: String = name.replace(QUALITY_SUFFIX, "").trim().ifEmpty { name }
+}
+
+private val COUNTRY_PREFIX = Regex("""^\s*([A-Z]{2,3})\s*[|:]\s*(.+?)\s*$""")
+private val QUALITY_SUFFIX = Regex("""\s+[\[(]?(UHD|4K|FHD|HD|SD|LOW|HEVC)[\])]?\s*$""", RegexOption.IGNORE_CASE)
 data class Programme(val title: String, val start: Long, val end: Long)
 
 /** Xtream-Codes player_api. Doku gibt es keine offizielle; Felder kommen je nach Panel als String oder Zahl. */

@@ -34,9 +34,9 @@ fun rememberNow(): Long {
 fun guideStart(now: Long) = now - now % HALF_HOUR
 
 @Composable
-fun GuideHeader(start: Long) {
-    Row(Modifier.fillMaxWidth().height(28.dp).padding(horizontal = 8.dp)) {
-        Spacer(Modifier.width(NAME_WIDTH))
+fun GuideHeader(start: Long, now: Long) {
+    Row(Modifier.fillMaxWidth().height(28.dp).padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text(hhmm.format(Date(now)), Modifier.width(NAME_WIDTH), style = MaterialTheme.typography.titleMedium)
         BoxWithConstraints(Modifier.weight(1f).fillMaxHeight()) {
             for (i in 0 until (GUIDE_WINDOW / HALF_HOUR).toInt()) {
                 Text(
@@ -81,12 +81,13 @@ fun GuideRow(
             Row(Modifier.width(NAME_WIDTH), verticalAlignment = Alignment.CenterVertically) {
                 Logo(channel)
                 Text(
-                    channel.name,
-                    Modifier.weight(1f).padding(horizontal = 12.dp),
+                    channel.label,
+                    Modifier.weight(1f, fill = false).padding(start = 12.dp, end = 8.dp),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
-                if (favorite) Text("★", Modifier.padding(end = 8.dp), color = Accent)
+                channel.quality?.let { Badge(it) }
+                if (favorite) Text("★", Modifier.padding(horizontal = 8.dp), color = Accent)
             }
             BoxWithConstraints(Modifier.weight(1f).fillMaxHeight().padding(vertical = 8.dp)) {
                 val end = start + GUIDE_WINDOW

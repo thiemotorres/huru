@@ -125,7 +125,7 @@ private fun InfoBar(channel: Channel, epg: List<Programme>, error: String?) {
     ) {
         Logo(channel, size = 72)
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text("${channel.num}  ${channel.name}", style = MaterialTheme.typography.headlineSmall, color = Color.White)
+            Text("${channel.num}  ${channel.label}", style = MaterialTheme.typography.headlineSmall, color = Color.White)
             if (error != null) {
                 Text("Stream-Fehler: $error · OK zum Neuladen", color = MaterialTheme.colorScheme.error)
             } else if (now != null) {
