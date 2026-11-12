@@ -50,6 +50,7 @@ fun Player(x: Xtream, channels: List<Channel>, start: Int, onChannel: (Channel) 
     var epg by remember { mutableStateOf<List<Programme>>(emptyList()) }
     var overlayTick by remember { mutableIntStateOf(0) }
     var overlay by remember { mutableStateOf(true) }
+    var paused by remember { mutableStateOf(false) }
     val channel = channels[index]
 
     val player = remember {
@@ -77,6 +78,8 @@ fun Player(x: Xtream, channels: List<Channel>, start: Int, onChannel: (Channel) 
 
     LaunchedEffect(retry) { if (retry > 0) play() }
     LaunchedEffect(channel) {
+        paused = false // zapping always plays the new channel
+        player.playWhenReady = true
         play()
         onChannel(channel)
         overlayTick++
@@ -100,6 +103,14 @@ fun Player(x: Xtream, channels: List<Channel>, start: Int, onChannel: (Channel) 
                     Key.DirectionUp, Key.ChannelUp -> { index = (index - 1 + channels.size) % channels.size; true }
                     Key.DirectionDown, Key.ChannelDown -> { index = (index + 1) % channels.size; true }
                     Key.DirectionCenter, Key.Enter -> { if (error != null) play(); overlayTick++; true }
+                    // Remote Play/Pause (required for Fire TV media apps); resuming jumps back to the live edge.
+                    Key.MediaPlayPause, Key.MediaPlay, Key.MediaPause -> {
+                        paused = !paused
+                        if (!paused) player.seekToDefaultPosition()
+                        player.playWhenReady = !paused
+                        overlayTick++
+                        true
+                    }
                     Key.DirectionLeft, Key.DirectionRight -> true // don't let focus escape into the list behind
                     else -> false
                 }
@@ -109,11 +120,11 @@ fun Player(x: Xtream, channels: List<Channel>, start: Int, onChannel: (Channel) 
     ) {
         VideoSurface(player)
         AnimatedVisibility(
-            visible = overlay || error != null,
+            visible = overlay || paused || error != null,
             enter = fadeIn(), exit = fadeOut(),
             modifier = Modifier.align(Alignment.BottomCenter),
         ) {
-            InfoBar(channel, epg, error)
+            InfoBar(channel, epg, error, paused = paused)
         }
     }
 }
@@ -142,7 +153,7 @@ fun VideoSurface(player: ExoPlayer) {
 val hhmm = SimpleDateFormat("HH:mm", Locale.GERMANY)
 
 @Composable
-internal fun InfoBar(channel: Channel, epg: List<Programme>, error: String?, now: Long = System.currentTimeMillis()) {
+internal fun InfoBar(channel: Channel, epg: List<Programme>, error: String?, now: Long = System.currentTimeMillis(), paused: Boolean = false) {
     val current = epg.firstOrNull()
     Row(
         Modifier
@@ -154,7 +165,7 @@ internal fun InfoBar(channel: Channel, epg: List<Programme>, error: String?, now
     ) {
         Logo(channel, size = 72)
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text("${channel.num}  ${channel.label}", style = MaterialTheme.typography.headlineSmall, color = Color.White)
+            Text((if (paused) "❚❚  " else "") + "${channel.num}  ${channel.label}", style = MaterialTheme.typography.headlineSmall, color = Color.White)
             if (error != null) {
                 Text(stringResource(R.string.stream_error, error), color = MaterialTheme.colorScheme.error)
             } else if (current != null) {

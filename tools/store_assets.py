@@ -30,6 +30,6 @@ render(read("banner.svg"), "firetv-icon-1280x720.png", 1280, 720)
 background = (f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080"><rect width="1920" height="1080" fill="{PLUM}"/>'
               f'<g transform="translate(1080 300) scale(3.6) translate(-40 -64)" opacity="0.9">{inner(read("mark.svg"))}</g></svg>')
 render(background, "background-1920x1080.png", 1920, 1080)
-for i, name in enumerate(["live-guide", "player", "movies", "series-detail", "splash"], 1):
+for i, name in enumerate(["live-guide", "player", "movies", "series-detail", "setup", "splash"], 1):
     shutil.copy(f"{ROOT}/docs/screenshots/{name}.png", f"{OUT}/screenshots/{i:02d}-{name}.png")
 print("ok", OUT)

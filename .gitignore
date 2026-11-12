@@ -10,3 +10,4 @@ keystore.properties
 .wrangler/
 node_modules/
 brag-output*/
+store/amazon/*.apk
