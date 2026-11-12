@@ -1,32 +1,32 @@
 <p align="center"><img src="branding/lockup.svg" alt="Huru" width="360"></p>
 
-**Huru** ist eine schlichte, werbefreie IPTV-App für Amazon Fire TV (Android TV). Sie ist ein reiner Player für **eigene** Xtream-Codes-Zugänge – ohne Werbung, ohne Tracking, ohne Ballast. *Huru* heißt auf Swahili „frei“.
+**Huru** is a clean, ad-free IPTV player for Amazon Fire TV (Android TV). It plays **your own** Xtream Codes subscription – no ads, no tracking, no clutter. *Huru* means "free" in Swahili.
 
-> **Hinweis:** Huru liefert keine Sender, Filme oder Serien und verweist auf keine Anbieter. Du brauchst einen eigenen, rechtmäßigen Zugang.
+> **Note:** Huru does not provide any channels, movies or series and does not point to any provider. You need your own, legitimate subscription.
 
-## Funktionen
+## Features
 
-- **Live-TV** mit Programmführer (EPG) direkt in der Senderliste, Favoriten und ausblendbaren Kategorien
-- **Schnelles Zappen:** Hoch/Runter im Player, Start direkt mit dem zuletzt gesehenen Sender
-- **Filme & Serien** als Poster-Raster mit Suche, „Weiterschauen“ und automatisch nächster Folge
-- **Für die Fernbedienung gebaut:** alles per D-Pad, langes OK für Favoriten bzw. Ausblenden
+- **Live TV** with a programme guide (EPG) built into the channel list, favourites and hideable categories
+- **Fast zapping:** Up/Down in the player, starts straight into the last watched channel
+- **Movies & series** as a poster grid with search, "Continue watching" and automatic next episode
+- **Built for the remote:** everything works with the D-pad; long-press OK for favourites or hiding categories
 
-## Bauen & installieren
+## Build & install
 
-Voraussetzungen: JDK 17, Android SDK (Plattform 35).
+Requirements: JDK 17, Android SDK (platform 35).
 
 ```sh
 ./gradlew assembleRelease
-adb connect <IP-des-Fire-TV>:5555          # ADB-Debugging in den Entwickleroptionen einschalten
+adb connect <fire-tv-ip>:5555               # enable ADB debugging in the developer options first
 adb install -r app/build/outputs/apk/release/app-release.apk
 ```
 
-Das Release-APK ist zum Sideloaden mit dem Debug-Schlüssel signiert.
+The release APK is signed with the debug key for sideloading.
 
-## Technik
+## Tech
 
-Kotlin, Jetpack Compose for TV, Media3 ExoPlayer, Coil. Keine weiteren Abhängigkeiten, kein Backend.
+Kotlin, Jetpack Compose for TV, Media3 ExoPlayer, Coil. No other dependencies, no backend.
 
-## Marke
+## Brand
 
-Logo, Farben und Regeln: [`branding/BRAND.md`](branding/BRAND.md). Schrift im Logo: Figtree (SIL OFL 1.1).
+Logo, colours and usage rules: [`branding/BRAND.md`](branding/BRAND.md). Typeface in the logo: Figtree (SIL OFL 1.1).

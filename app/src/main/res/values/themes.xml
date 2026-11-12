@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Pflaume als Fensterhintergrund: kein weißer Blitz vor dem Splash -->
+    <!-- Plum window background: no white flash before the splash screen -->
     <style name="Theme.Huru" parent="android:Theme.Black.NoTitleBar.Fullscreen">
         <item name="android:windowBackground">@color/plum</item>
     </style>

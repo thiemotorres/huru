@@ -14,13 +14,13 @@ import java.net.URL
 data class Account(val server: String, val user: String, val pass: String)
 data class Category(val id: String, val name: String) {
     private val match = COUNTRY_PREFIX.matchEntire(name)
-    /** Länderkürzel aus "PT | Desporto" → "PT". */
+    /** Country prefix from "PT | Desporto" → "PT". */
     val prefix: String? = match?.groupValues?.get(1)
     val label: String = match?.groupValues?.get(2) ?: name
 }
 
 data class Channel(val id: Int, val num: Int, val name: String, val logo: String?, val categoryId: String) {
-    /** Qualitätsangabe am Namensende: "SPORT TV 1 FHD" → "FHD". */
+    /** Quality suffix at the end of the name: "SPORT TV 1 FHD" → "FHD". */
     val quality: String? = QUALITY_SUFFIX.find(name)?.groupValues?.get(1)?.uppercase()
     val label: String = name.replace(QUALITY_SUFFIX, "").trim().ifEmpty { name }
 }
@@ -29,11 +29,11 @@ private val COUNTRY_PREFIX = Regex("""^\s*([A-Z]{2,3})\s*[|:]\s*(.+?)\s*$""")
 private val QUALITY_SUFFIX = Regex("""\s+[\[(]?(UHD|4K|FHD|HD|SD|LOW|HEVC)[\])]?\s*$""", RegexOption.IGNORE_CASE)
 data class Programme(val title: String, val start: Long, val end: Long)
 
-/** Film oder Serie in einer Liste. ext nur bei Filmen (Dateiendung des Streams). */
+/** Movie or series in a list. ext only for movies (stream file extension). */
 data class VodItem(val id: Int, val name: String, val poster: String?, val categoryId: String, val ext: String, val plot: String?)
 data class Episode(val id: String, val season: Int, val num: Int, val title: String, val ext: String, val plot: String?)
 
-/** Xtream-Codes player_api. Doku gibt es keine offizielle; Felder kommen je nach Panel als String oder Zahl. */
+/** Xtream Codes player_api. There are no official docs; fields arrive as string or number depending on the panel. */
 class Xtream(val account: Account) {
     private val base = account.server.trim().trimEnd('/').let { if ("://" in it) it else "http://$it" }
     private val auth = "username=${Uri.encode(account.user)}&password=${Uri.encode(account.pass)}"
@@ -43,7 +43,7 @@ class Xtream(val account: Account) {
         conn.connectTimeout = 10_000
         conn.readTimeout = 30_000
         try {
-            if (conn.responseCode != 200) throw IOException("Server antwortet mit HTTP ${conn.responseCode}")
+            if (conn.responseCode != 200) throw IOException("Server responded with HTTP ${conn.responseCode}")
             conn.inputStream.bufferedReader().use { it.readText() }
         } finally {
             conn.disconnect()
@@ -52,10 +52,10 @@ class Xtream(val account: Account) {
 
     suspend fun login() {
         val info = JSONObject(get("")).optJSONObject("user_info")
-        if (info?.optInt("auth") != 1) throw IOException("Login fehlgeschlagen")
+        if (info?.optInt("auth") != 1) throw IOException("Login failed")
     }
 
-    /** Rohes JSON einer Listen-Action (z. B. get_live_streams), damit es sich unverändert cachen lässt. */
+    /** Raw JSON of a list action (e.g. get_live_streams) so it can be cached unchanged. */
     suspend fun raw(action: String): String = get("&action=$action")
 
     fun parseCategories(json: String): List<Category> =
@@ -121,7 +121,7 @@ class Xtream(val account: Account) {
         "$base/live/${Uri.encode(account.user)}/${Uri.encode(account.pass)}/${channel.id}.ts"
 }
 
-/** "episodes" ist je nach Panel ein Objekt {"1": [...], "2": [...]} oder ein Array von Arrays. */
+/** Depending on the panel, "episodes" is an object {"1": [...], "2": [...]} or an array of arrays. */
 fun parseEpisodes(json: String): List<Episode> {
     fun episode(o: JSONObject, season: Int) = Episode(
         id = o.optString("id"),
@@ -143,7 +143,7 @@ fun parseEpisodes(json: String): List<Episode> {
     return episodes.sortedWith(compareBy({ it.season }, { it.num }))
 }
 
-/** Erst den Cache-Stand (falls vorhanden), dann den frischen Server-Stand an [show] liefern; Server-Fehler werfen. */
+/** Passes the cached state (if any) to [show], then the fresh server state; server errors are thrown. */
 suspend fun Xtream.loadLists(cacheDir: File, actions: List<String>, show: suspend (List<String>) -> Unit) {
     val dir = File(cacheDir, "lists-${account.hashCode()}").apply { mkdirs() }
     val files = actions.map { File(dir, "$it.json") }
@@ -154,7 +154,7 @@ suspend fun Xtream.loadLists(cacheDir: File, actions: List<String>, show: suspen
     show(fresh)
 }
 
-/** Optionaler Text: JSON-null und leere Werte werden zu null (optString liefert sonst "null"). */
+/** Optional text: JSON null and blank values become null (optString would return "null"). */
 private fun JSONObject.str(key: String): String? = if (isNull(key)) null else optString(key).ifBlank { null }
 
 private fun JSONArray.objects() = (0 until length()).mapNotNull { optJSONObject(it) }

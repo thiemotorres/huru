@@ -11,7 +11,7 @@ class NamesTest {
         assertEquals("RTP 1" to "LOW", ch("RTP 1 LOW").let { it.label to it.quality })
         assertEquals("Canal" to "HD", ch("Canal (hd)").let { it.label to it.quality })
         assertEquals("SHD Kanal" to null, ch("SHD Kanal").let { it.label to it.quality })
-        assertEquals("HD" to null, ch("HD").let { it.label to it.quality }) // nur ein Wort: nicht leeren
+        assertEquals("HD" to null, ch("HD").let { it.label to it.quality }) // a single word must not be stripped to nothing
     }
 
     @Test fun countryPrefix() {
@@ -52,9 +52,9 @@ class TextTest {
     @Test fun episodeTitles() {
         val s = "A Forma Errada de Usar Magia de Cura"
         assertEquals("" to "DUAL FHD", cleanEpisodeTitle("$s S01E01 [DUAL FHD]", s))
-        assertEquals("Der Plan" to null, cleanEpisodeTitle("Serie - S01E02 - Der Plan", "Serie (2024)"))
-        assertEquals("Pilot" to "4K", cleanEpisodeTitle("Pilot [4K]", "Andere Serie"))
-        assertEquals("Ganz normal" to null, cleanEpisodeTitle("Ganz normal", "X"))
+        assertEquals("The Plan" to null, cleanEpisodeTitle("Show - S01E02 - The Plan", "Show (2024)"))
+        assertEquals("Pilot" to "4K", cleanEpisodeTitle("Pilot [4K]", "Another Show"))
+        assertEquals("Just a title" to null, cleanEpisodeTitle("Just a title", "X"))
     }
 
     @Test fun search() {

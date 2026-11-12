@@ -24,14 +24,14 @@ import kotlinx.coroutines.launch
 import kotlin.math.PI
 import kotlin.math.sin
 
-// Markenfarben (branding/BRAND.md)
+// Brand colours (branding/BRAND.md)
 val Plum = Color(0xFF3B1F3A)
 val Coral = Color(0xFFFF6B4A)
 val CoralDark = Color(0xFFE5502F)
 val Mustard = Color(0xFFFFC23D)
 val Cream = Color(0xFFFFF4E6)
 
-// Geometrie wie branding/icon.svg (Raster 256, Bildschirm bei 40..216 × 64..192)
+// Geometry as in branding/icon.svg (256 grid, screen at 40..216 × 64..192)
 private val SCREEN = PathParser().parsePathString(
     "M68 64H188A28 28 0 0 1 216 92V164A28 28 0 0 1 188 192H68A28 28 0 0 1 40 164V92A28 28 0 0 1 68 64Z"
 ).toPath()
@@ -42,7 +42,7 @@ private val GULL = PathParser().parsePathString(
     "M-62 8C-46 -20 -20 -24 0 4C20 -24 46 -20 62 8C42 -4 20 -2 0 20C-20 -2 -42 -4 -62 8Z"
 ).toPath()
 
-/** Startbild: Sonne geht auf, Möwe fliegt mit Flügelschlag an ihren Platz, dann [onDone]. */
+/** Splash: the sun rises, the gull flaps into place, then [onDone]. */
 @Composable
 fun Splash(onDone: () -> Unit) {
     val rise = remember { Animatable(0f) }
@@ -75,15 +75,15 @@ private fun DrawScope.scene(rise: Float, fly: Float, flap: Float) {
     withTransform({ scale(s, s, Offset.Zero); translate(-40f, -64f) }) {
         clipPath(SCREEN) {
             drawPath(SCREEN, Coral)
-            // Sonne steigt von unterhalb des Horizonts auf ihren Platz (Basis y=168)
+            // The sun rises from below the horizon to its place (base y=168)
             val base = 168f + (1 - rise) * 56f
             drawArc(Mustard, 180f, 180f, useCenter = true, topLeft = Offset(78f, base - 50f), size = Size(100f, 100f))
             drawPath(GROUND, CoralDark)
             if (fly > 0f) {
-                // Flug von links unten in einem leichten Bogen an die Ruheposition (176, 100)
+                // Fly in from bottom left in a gentle arc to the resting position (176, 100)
                 val x = 10f + (176f - 10f) * fly
                 val y = 150f + (100f - 150f) * fly - sin(fly * PI).toFloat() * 24f
-                val beat = flap + (1f - flap) * fly * fly * fly // Flügelschlag läuft am Ziel aus
+                val beat = flap + (1f - flap) * fly * fly * fly // wing beat settles at the end
                 translate(x, y) {
                     withTransform({ rotate(-10f, Offset.Zero); scale(0.42f, 0.42f * beat, Offset.Zero) }) {
                         drawPath(GULL, Cream)

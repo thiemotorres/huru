@@ -54,7 +54,7 @@ class MainActivity : ComponentActivity() {
                 var splash by remember { mutableStateOf(true) }
                 Box {
                     Surface(Modifier.fillMaxSize(), shape = RectangleShape) { App(prefs) }
-                    // Startbild über der App; darunter laden Listen und ggf. der letzte Sender schon
+                    // Splash on top of the app; lists and the last channel already load underneath
                     androidx.compose.animation.AnimatedVisibility(splash, exit = androidx.compose.animation.fadeOut()) {
                         Splash { splash = false }
                     }
@@ -65,9 +65,9 @@ class MainActivity : ComponentActivity() {
 }
 
 val Accent = Coral
-val Night = Color(0xFF1E1520) // sehr dunkles Pflaume als App-Hintergrund
+val Night = Color(0xFF1E1520) // very dark plum app background
 
-// ponytail: Zugangsdaten im Klartext in SharedPreferences (app-privat). Reicht für den eigenen Stick.
+// ponytail: credentials stored in plain text in app-private SharedPreferences. Fine for a personal device.
 private fun SharedPreferences.account() =
     getString("server", null)?.let { Account(it, getString("user", "")!!, getString("pass", "")!!) }
 
@@ -78,9 +78,9 @@ private fun SharedPreferences.save(a: Account?) = edit().apply {
 @Composable
 fun App(prefs: SharedPreferences) {
     var xtream by remember { mutableStateOf(prefs.account()?.let(::Xtream)) }
-    var mode by remember { mutableIntStateOf(0) } // 0 TV, 1 Filme, 2 Serien
-    var switched by remember { mutableStateOf(false) } // nach einem Wechsel Fokus auf den Umschalter statt Liste
-    var autoplay by remember { mutableStateOf(true) } // letzten Sender nur beim App-Start automatisch abspielen
+    var mode by remember { mutableIntStateOf(0) } // 0 TV, 1 movies, 2 series
+    var switched by remember { mutableStateOf(false) } // after switching modes, focus the switcher instead of the list
+    var autoplay by remember { mutableStateOf(true) } // auto-play the last channel only on app start
     val header = @Composable { ModeSwitch(mode, onMode = { mode = it; switched = true }, focus = switched) }
     when (val x = xtream) {
         null -> LoginScreen { prefs.save(it.account); xtream = it }
@@ -99,7 +99,7 @@ fun App(prefs: SharedPreferences) {
 fun ModeSwitch(mode: Int, onMode: (Int) -> Unit, focus: Boolean) {
     val requester = remember { FocusRequester() }
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        listOf("TV", "Filme", "Serien").forEachIndexed { i, label ->
+        listOf("TV", "Movies", "Series").forEachIndexed { i, label ->
             Surface(
                 onClick = { if (i != mode) onMode(i) },
                 modifier = if (i == mode) Modifier.focusRequester(requester) else Modifier,
@@ -134,24 +134,24 @@ fun LoginScreen(onLogin: (Xtream) -> Unit) {
         verticalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterVertically),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Text("Xtream-Zugang", style = MaterialTheme.typography.headlineMedium)
-        Field("Server (z. B. http://host:8080)", server, KeyboardType.Uri) { server = it }
-        Field("Benutzer", user) { user = it }
-        Field("Passwort", pass, KeyboardType.Password, password = true) { pass = it }
+        Text("Xtream login", style = MaterialTheme.typography.headlineMedium)
+        Field("Server (e.g. http://host:8080)", server, KeyboardType.Uri) { server = it }
+        Field("Username", user) { user = it }
+        Field("Password", pass, KeyboardType.Password, password = true) { pass = it }
         Button(enabled = !busy && server.isNotBlank(), onClick = {
             busy = true; error = null
             val x = Xtream(Account(server, user, pass))
             scope.launch {
                 runCatching { x.login() }
                     .onSuccess {
-                        // Sonst bleibt die IME-Sitzung offen und Fire OS zeigt die Tastatur über dem Player wieder an.
+                        // Otherwise the IME session stays open and Fire OS re-shows the keyboard over the player.
                         keyboard?.hide()
                         focusManager.clearFocus(force = true)
                         onLogin(x)
                     }
-                    .onFailure { error = it.message ?: "Verbindung fehlgeschlagen"; busy = false }
+                    .onFailure { error = it.message ?: "Connection failed"; busy = false }
             }
-        }) { Text(if (busy) "Verbinde…" else "Anmelden") }
+        }) { Text(if (busy) "Connecting…" else "Sign in") }
         error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
     }
 }
@@ -217,16 +217,16 @@ fun BrowseScreen(
     }
     var error by remember { mutableStateOf<String?>(null) }
     var selected by remember { mutableStateOf<String?>(null) }
-    var playing by remember { mutableStateOf<Int?>(null) } // Index in der aktuellen Kategorie
+    var playing by remember { mutableStateOf<Int?>(null) } // index within the current category
     var returnTo by remember { mutableStateOf<Int?>(null) }
-    val epg = remember { mutableStateMapOf<Int, List<Programme>>() } // stream_id -> Sendungen, Cache für die Sitzung
+    val epg = remember { mutableStateMapOf<Int, List<Programme>>() } // stream_id -> programmes, cached for the session
     fun channelsOf(cat: String?) =
         if (cat == FAVORITES) all.filter { it.id.toString() in favorites } else byCategory[cat].orEmpty()
 
     LaunchedEffect(x) {
         var started = false
         runCatching {
-            // Erst Cache, dann Server.
+            // Cache first, then server.
             x.loadLists(context.cacheDir, listOf("get_live_categories", "get_live_streams")) { (catJson, chanJson) ->
                 val (cats, chans) = withContext(Dispatchers.Default) { x.parseCategories(catJson) to x.parseChannels(chanJson) }
                 all = chans
@@ -236,7 +236,7 @@ fun BrowseScreen(
                 started = true
                 if (autoplay) {
                     onAutoplayed()
-                    // Direkt mit dem zuletzt gesehenen Sender starten, falls es ihn noch gibt.
+                    // Start straight into the last watched channel if it still exists.
                     val lastCategory = lastPrefs.getString("category", null)
                     val last = channelsOf(lastCategory).indexOfFirst { it.id == lastPrefs.getInt("channel", -1) }
                     if (last >= 0) {
@@ -247,22 +247,22 @@ fun BrowseScreen(
                 }
                 selected = if (favorites.isNotEmpty()) FAVORITES else categories?.firstOrNull()?.id
             }
-        }.onFailure { if (!started) error = it.message ?: "Laden fehlgeschlagen" }
+        }.onFailure { if (!started) error = it.message ?: "Loading failed" }
     }
 
     val loaded = categories
     if (loaded == null) {
         Column(Modifier.fillMaxSize(), Arrangement.Center, Alignment.CenterHorizontally) {
-            Text(error ?: "Lade Sender…")
-            if (error != null) Button(onClick = onLogout, Modifier.padding(top = 16.dp)) { Text("Abmelden") }
+            Text(error ?: "Loading channels…")
+            if (error != null) Button(onClick = onLogout, Modifier.padding(top = 16.dp)) { Text("Sign out") }
         }
         return
     }
     val hiddenCount = loaded.count { it.id in hidden }
     val cats = buildList {
-        if (favorites.isNotEmpty()) add(Category(FAVORITES, "★ Favoriten"))
+        if (favorites.isNotEmpty()) add(Category(FAVORITES, "★ Favorites"))
         addAll(if (showHidden) loaded else loaded.filter { it.id !in hidden })
-        if (hiddenCount > 0) add(Category(TOGGLE_HIDDEN, if (showHidden) "Ausgeblendete verbergen" else "$hiddenCount ausgeblendet"))
+        if (hiddenCount > 0) add(Category(TOGGLE_HIDDEN, if (showHidden) "Hide hidden" else "$hiddenCount hidden"))
     }
     val channels = remember(selected, all, favorites) { channelsOf(selected) }
     val firstCategory = remember { FocusRequester() }
@@ -290,7 +290,7 @@ fun BrowseScreen(
                             selected = cat.id == selected,
                             dim = cat.id in hidden || cat.id == TOGGLE_HIDDEN,
                             onClick = { if (cat.id == TOGGLE_HIDDEN) showHidden = !showHidden },
-                            onLongClick = { if (!special) toggleHidden(cat) }, // Kategorie aus-/einblenden
+                            onLongClick = { if (!special) toggleHidden(cat) }, // hide/unhide category
                             modifier = Modifier
                                 .then(if (i == 0) Modifier.focusRequester(firstCategory) else Modifier)
                                 .onFocusChanged { if (it.isFocused && cat.id != TOGGLE_HIDDEN) selected = cat.id },
@@ -306,9 +306,9 @@ fun BrowseScreen(
                     itemsIndexed(channels, key = { _, c -> c.id }) { i, ch ->
                         LaunchedEffect(ch.id, start) {
                             val cached = epg[ch.id]
-                            // Neu laden, wenn noch nichts da ist oder alles Gecachte vorbei ist.
+                            // Reload when nothing is cached yet or everything cached has ended.
                             if (cached == null || cached.isNotEmpty() && cached.last().end < start + GUIDE_WINDOW) {
-                                delay(300) // schnelles Scrollen bricht ab, bevor angefragt wird
+                                delay(300) // fast scrolling cancels before the request goes out
                                 epg[ch.id] = runCatching { x.shortEpg(ch, limit = 10) }.getOrDefault(emptyList())
                             }
                         }
@@ -339,7 +339,7 @@ fun BrowseScreen(
 private const val FAVORITES = "__favorites"
 private const val TOGGLE_HIDDEN = "__toggle_hidden"
 
-/** Kleines umrandetes Kürzel, z. B. Länderpräfix oder Qualität. */
+/** Small outlined tag, e.g. a country prefix or quality. */
 @Composable
 fun Badge(text: String, modifier: Modifier = Modifier) {
     Text(

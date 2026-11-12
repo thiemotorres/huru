@@ -19,7 +19,7 @@ android {
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"))
-            // ponytail: mit dem Debug-Schlüssel signiert, reicht zum Sideloaden. Eigener Keystore erst für einen Store.
+            // ponytail: signed with the debug key, fine for sideloading. Add a real keystore before publishing to a store.
             signingConfig = signingConfigs.getByName("debug")
         }
     }

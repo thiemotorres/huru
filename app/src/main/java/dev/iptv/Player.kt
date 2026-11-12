@@ -36,12 +36,12 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-/** Vollbild-Player. Hoch/Runter (oder CH+/CH−) zappt innerhalb der Kategorie, OK zeigt Info, Zurück verlässt. */
+/** Full-screen live player. Up/Down (or CH+/CH−) zaps within the category, OK shows info, Back exits. */
 @Composable
 @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class) // DefaultLoadControl
 fun Player(x: Xtream, channels: List<Channel>, start: Int, onChannel: (Channel) -> Unit, onExit: (Int) -> Unit) {
     val context = LocalContext.current
-    // Liste beim Start festhalten: eine Hintergrund-Aktualisierung soll nicht mitten im Schauen den Sender wechseln.
+    // Pin the list on start: a background refresh must not switch the channel mid-viewing.
     val channels = remember { channels }
     var index by remember { mutableIntStateOf(start) }
     var error by remember { mutableStateOf<String?>(null) }
@@ -51,7 +51,7 @@ fun Player(x: Xtream, channels: List<Channel>, start: Int, onChannel: (Channel) 
     val channel = channels[index]
 
     val player = remember {
-        // Live-TV: nach 1 s Puffer losspielen statt 2,5 s (schnelleres Starten und Zappen).
+        // Live TV: start after 1 s of buffer instead of 2.5 s (faster start and zapping).
         val loadControl = DefaultLoadControl.Builder()
             .setBufferDurationsMs(15_000, 50_000, 1_000, 2_000)
             .build()
@@ -94,7 +94,7 @@ fun Player(x: Xtream, channels: List<Channel>, start: Int, onChannel: (Channel) 
                     Key.DirectionUp, Key.ChannelUp -> { index = (index - 1 + channels.size) % channels.size; true }
                     Key.DirectionDown, Key.ChannelDown -> { index = (index + 1) % channels.size; true }
                     Key.DirectionCenter, Key.Enter -> { if (error != null) play(); overlayTick++; true }
-                    Key.DirectionLeft, Key.DirectionRight -> true // nicht in die Liste dahinter ausbrechen
+                    Key.DirectionLeft, Key.DirectionRight -> true // don't let focus escape into the list behind
                     else -> false
                 }
             }
@@ -112,7 +112,7 @@ fun Player(x: Xtream, channels: List<Channel>, start: Int, onChannel: (Channel) 
     }
 }
 
-/** ExoPlayer, der auch http→https-Weiterleitungen folgt (Filme/Folgen liegen oft auf einem CDN). */
+/** ExoPlayer that also follows http→https redirects (movies/episodes often live on a CDN). */
 @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
 fun newPlayer(context: android.content.Context): ExoPlayer.Builder {
     val http = DefaultHttpDataSource.Factory().setAllowCrossProtocolRedirects(true)
@@ -120,14 +120,14 @@ fun newPlayer(context: android.content.Context): ExoPlayer.Builder {
         .setMediaSourceFactory(DefaultMediaSourceFactory(DefaultDataSource.Factory(context, http)))
 }
 
-/** Lesbarer Fehler: HTTP-Status, falls der Server einen geliefert hat. */
+/** Readable error: the HTTP status if the server sent one. */
 fun describe(e: PlaybackException): String =
     (e.cause as? HttpDataSource.InvalidResponseCodeException)?.let { "HTTP ${it.responseCode}" } ?: e.errorCodeName
 
 @Composable
 fun VideoSurface(player: ExoPlayer) {
     AndroidView(
-        // TextureView statt PlayerView/SurfaceView: die SurfaceView landet unter der Compose-Fläche (Ton, kein Bild).
+        // TextureView instead of PlayerView/SurfaceView: the SurfaceView ends up behind the Compose layer (audio, no picture).
         factory = { TextureView(it).apply { isFocusable = false; keepScreenOn = true; player.setVideoTextureView(this) } },
         modifier = Modifier.fillMaxSize(),
     )
@@ -150,7 +150,7 @@ private fun InfoBar(channel: Channel, epg: List<Programme>, error: String?) {
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text("${channel.num}  ${channel.label}", style = MaterialTheme.typography.headlineSmall, color = Color.White)
             if (error != null) {
-                Text("Stream-Fehler: $error · OK zum Neuladen", color = MaterialTheme.colorScheme.error)
+                Text("Stream error: $error · press OK to retry", color = MaterialTheme.colorScheme.error)
             } else if (now != null) {
                 Text("${hhmm.format(Date(now.start))}–${hhmm.format(Date(now.end))}  ${now.title}", color = Color.White)
                 val progress = ((System.currentTimeMillis() - now.start).toFloat() / (now.end - now.start)).coerceIn(0f, 1f)
@@ -158,7 +158,7 @@ private fun InfoBar(channel: Channel, epg: List<Programme>, error: String?) {
                     Box(Modifier.fillMaxWidth(progress).fillMaxHeight().background(Accent))
                 }
                 epg.getOrNull(1)?.let {
-                    Text("Danach ${hhmm.format(Date(it.start))}  ${it.title}", color = Color.White.copy(alpha = 0.6f))
+                    Text("Next ${hhmm.format(Date(it.start))}  ${it.title}", color = Color.White.copy(alpha = 0.6f))
                 }
             }
         }

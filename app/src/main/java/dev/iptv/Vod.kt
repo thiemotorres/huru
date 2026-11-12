@@ -42,7 +42,7 @@ import coil.compose.AsyncImage
 import kotlinx.coroutines.android.awaitFrame
 import kotlinx.coroutines.delay
 
-/** Was abgespielt wird. resumeKey merkt die Position, following läuft danach automatisch (nächste Folgen). */
+/** What is playing. resumeKey stores the position; following plays automatically afterwards (next episodes). */
 data class Playback(
     val url: String,
     val title: String,
@@ -53,12 +53,12 @@ data class Playback(
 
 data class Progress(val playback: Playback, val position: Long, val duration: Long, val updated: Long)
 
-/** Angefangene Filme/Folgen ("movie-…", "ep-…") für Fortsetzen und "Weiterschauen". */
+/** Started movies/episodes ("movie-…", "ep-…") for resuming and "Continue watching". */
 class ProgressStore(context: Context) {
     private val prefs = context.getSharedPreferences("continue", Context.MODE_PRIVATE)
 
     fun save(p: Playback, position: Long, duration: Long) {
-        // Fast zu Ende oder kaum angefangen: nicht merken.
+        // Nearly finished or barely started: don't remember.
         if (duration > 0 && position > duration * 0.95 || position < 30_000) {
             prefs.edit().remove(p.resumeKey).apply()
             return
@@ -89,7 +89,7 @@ class ProgressStore(context: Context) {
 private const val SEARCH = "__search"
 private const val CONTINUE = "__continue"
 
-/** Sperrt eine Fokusgruppe für D-Pad-Navigation, solange etwas darüber liegt. */
+/** Blocks D-pad focus from entering a group while something is layered on top. */
 @OptIn(ExperimentalComposeUiApi::class)
 private fun Modifier.blockFocus(blocked: Boolean) = this
     .focusProperties { if (blocked) enter = { FocusRequester.Cancel } }
@@ -104,7 +104,7 @@ fun VodScreen(x: Xtream, series: Boolean, header: @Composable () -> Unit, autoFo
     var error by remember { mutableStateOf<String?>(null) }
     var detail by remember { mutableStateOf<VodItem?>(null) }
     var playing by remember { mutableStateOf<Playback?>(null) }
-    var lastPicked by remember { mutableStateOf<Int?>(null) } // Poster, auf das der Fokus zurückkehrt
+    var lastPicked by remember { mutableStateOf<Int?>(null) } // poster that focus returns to
     var query by remember { mutableStateOf("") }
     val store = remember { ProgressStore(context) }
     val prefix = if (series) "ep-" else "movie-"
@@ -122,7 +122,7 @@ fun VodScreen(x: Xtream, series: Boolean, header: @Composable () -> Unit, autoFo
                 categories = x.parseCategories(c).filter { byCategory[it.id] != null }
                 if (selected == null) selected = if (store.list(prefix).isNotEmpty()) CONTINUE else categories?.firstOrNull()?.id
             }
-        }.onFailure { if (categories == null) error = it.message ?: "Laden fehlgeschlagen" }
+        }.onFailure { if (categories == null) error = it.message ?: "Loading failed" }
     }
 
     val loaded = categories
@@ -130,16 +130,16 @@ fun VodScreen(x: Xtream, series: Boolean, header: @Composable () -> Unit, autoFo
         Column(Modifier.fillMaxSize().padding(24.dp)) {
             header()
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text(error ?: if (series) "Lade Serien…" else "Lade Filme…")
+                Text(error ?: if (series) "Loading series…" else "Loading movies…")
             }
         }
         return
     }
     LaunchedEffect(Unit) { if (autoFocus) { awaitFrame(); runCatching { firstCategory.requestFocus() } } }
-    val inProgress = remember(playing) { store.list(prefix) } // nach dem Schauen neu lesen
+    val inProgress = remember(playing) { store.list(prefix) } // re-read after watching
     val cats = buildList {
-        add(Category(SEARCH, "Suchen"))
-        if (inProgress.isNotEmpty()) add(Category(CONTINUE, "▶ Weiterschauen"))
+        add(Category(SEARCH, "Search"))
+        if (inProgress.isNotEmpty()) add(Category(CONTINUE, "▶ Continue watching"))
         addAll(loaded)
     }
     val all = remember(byCategory) { byCategory.values.flatten().map { it to searchKey(it.name) } }
@@ -180,7 +180,7 @@ fun VodScreen(x: Xtream, series: Boolean, header: @Composable () -> Unit, autoFo
             }
             Column(Modifier.weight(1f)) {
             if (selected == SEARCH) {
-                Field("Titel suchen (mind. 2 Zeichen)", query, imeAction = ImeAction.Search) { query = it }
+                Field("Search titles (at least 2 characters)", query, imeAction = ImeAction.Search) { query = it }
                 Spacer(Modifier.height(12.dp))
             }
             LazyVerticalGrid(
@@ -219,7 +219,7 @@ fun VodScreen(x: Xtream, series: Boolean, header: @Composable () -> Unit, autoFo
             )
         }
         playing?.let { p ->
-            key(p.resumeKey) { // neue Folge → neuer Player
+            key(p.resumeKey) { // new episode → new player
                 VodPlayer(
                     p,
                     onEnded = { playing = p.following.firstOrNull()?.copy(following = p.following.drop(1)) },
@@ -228,7 +228,7 @@ fun VodScreen(x: Xtream, series: Boolean, header: @Composable () -> Unit, autoFo
             }
         }
     }
-    // Fokus zurück auf das zuletzt gewählte Poster, wenn Detail/Player geschlossen werden.
+    // Return focus to the last picked poster when detail/player close.
     LaunchedEffect(detail == null && playing == null) {
         if (detail == null && playing == null && lastPicked != null) { awaitFrame(); runCatching { pickedFocus.requestFocus() } }
     }
@@ -263,7 +263,7 @@ fun CategoryItem(
 
 @Composable
 private fun Poster(title: String, poster: String?, modifier: Modifier, progress: Float? = null, onClick: () -> Unit) {
-    // Abstand > Vergrößerung beim Fokus, sonst überdeckt das Poster den Titel.
+    // Spacing > focus scale-up, otherwise the poster covers the title.
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Surface(
             onClick = onClick,
@@ -310,12 +310,12 @@ private fun SeriesDetail(
     LaunchedEffect(series.id) {
         runCatching { x.episodes(series) }
             .onSuccess { episodes = it; season = it.firstOrNull()?.season }
-            .onFailure { error = it.message ?: "Laden fehlgeschlagen" }
+            .onFailure { error = it.message ?: "Loading failed" }
     }
     LaunchedEffect(episodes != null) {
         if (episodes != null) { awaitFrame(); runCatching { firstEpisode.requestFocus() } }
     }
-    LaunchedEffect(blocked) { // Player zu → zurück auf die Folge
+    LaunchedEffect(blocked) { // player closed → back to the episode
         if (!blocked && lastEpisode != null) { awaitFrame(); runCatching { lastEpisodeFocus.requestFocus() } }
     }
     BackHandler(enabled = !blocked, onBack = onBack)
@@ -342,8 +342,8 @@ private fun SeriesDetail(
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(16.dp)) {
             when {
                 error != null -> Text(error!!)
-                episodes == null -> Text("Lade Folgen…")
-                episodes!!.isEmpty() -> Text("Keine Folgen gefunden")
+                episodes == null -> Text("Loading episodes…")
+                episodes!!.isEmpty() -> Text("No episodes found")
             }
             if (seasons.size > 1) {
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -352,7 +352,7 @@ private fun SeriesDetail(
                             selected = s == season,
                             onClick = { season = s },
                             modifier = Modifier.onFocusChanged { if (it.isFocused) season = s },
-                        ) { Text("Staffel $s") }
+                        ) { Text("Season $s") }
                     }
                 }
             }
@@ -367,7 +367,7 @@ private fun SeriesDetail(
                         headlineContent = {
                             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                                 Text(
-                                    if (title.isEmpty()) "Folge ${ep.num}" else "${ep.num}. $title",
+                                    if (title.isEmpty()) "Episode ${ep.num}" else "${ep.num}. $title",
                                     Modifier.weight(1f, fill = false),
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis,
@@ -376,7 +376,7 @@ private fun SeriesDetail(
                             }
                         },
                         supportingContent = ep.plot?.let { { Text(it, maxLines = 1, overflow = TextOverflow.Ellipsis) } },
-                        trailingContent = if (at > 0) { { Text("bei ${duration(at)}", color = Accent) } } else null,
+                        trailingContent = if (at > 0) { { Text("at ${duration(at)}", color = Accent) } } else null,
                         modifier = when {
                             ep.id == lastEpisode -> Modifier.focusRequester(lastEpisodeFocus)
                             ep == shown.first() -> Modifier.focusRequester(firstEpisode)
@@ -389,13 +389,13 @@ private fun SeriesDetail(
     }
 }
 
-/** Player für Filme und Folgen: OK pausiert, Links/Rechts spult, merkt sich die Position. */
+/** Player for movies and episodes: OK pauses, Left/Right seeks, the position is remembered. */
 @Composable
 fun VodPlayer(playback: Playback, onEnded: () -> Unit, onExit: () -> Unit) {
     val context = LocalContext.current
     val store = remember { ProgressStore(context) }
     val keyboard = LocalSoftwareKeyboardController.current
-    LaunchedEffect(Unit) { keyboard?.hide() } // offene Such-Tastatur würde sonst über dem Video wieder aufgehen
+    LaunchedEffect(Unit) { keyboard?.hide() } // an open search keyboard would otherwise pop up over the video
     var error by remember { mutableStateOf<String?>(null) }
     var buffering by remember { mutableStateOf(true) }
     var paused by remember { mutableStateOf(false) }
@@ -427,7 +427,7 @@ fun VodPlayer(playback: Playback, onEnded: () -> Unit, onExit: () -> Unit) {
         while (true) {
             position = player.currentPosition
             length = player.duration.coerceAtLeast(0)
-            if (++ticks % 20 == 0) save() // alle 10 s, falls die App hart beendet wird
+            if (++ticks % 20 == 0) save() // every 10 s in case the app gets killed
             delay(500)
         }
     }
@@ -468,7 +468,7 @@ fun VodPlayer(playback: Playback, onEnded: () -> Unit, onExit: () -> Unit) {
     ) {
         VideoSurface(player)
         if (buffering && error == null) {
-            Text("Lädt…", Modifier.align(Alignment.Center), color = Color.White.copy(alpha = 0.7f))
+            Text("Loading…", Modifier.align(Alignment.Center), color = Color.White.copy(alpha = 0.7f))
         }
         AnimatedVisibility(
             visible = overlay || paused || error != null,
@@ -483,7 +483,7 @@ fun VodPlayer(playback: Playback, onEnded: () -> Unit, onExit: () -> Unit) {
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 Text((if (paused) "❚❚  " else "") + playback.title, style = MaterialTheme.typography.headlineSmall, color = Color.White)
-                error?.let { Text("Fehler: $it · OK zum Neuladen", color = MaterialTheme.colorScheme.error) }
+                error?.let { Text("Error: $it · press OK to retry", color = MaterialTheme.colorScheme.error) }
                 val progress = if (length > 0) (position.toFloat() / length).coerceIn(0f, 1f) else 0f
                 Box(Modifier.fillMaxWidth().height(4.dp).background(Color.White.copy(alpha = 0.2f))) {
                     Box(Modifier.fillMaxWidth(progress).fillMaxHeight().background(Accent))

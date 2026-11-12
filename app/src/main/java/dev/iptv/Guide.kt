@@ -21,7 +21,7 @@ const val GUIDE_WINDOW = 2 * 60 * 60 * 1000L
 private const val HALF_HOUR = 30 * 60 * 1000L
 private val NAME_WIDTH = 240.dp
 
-/** Aktuelle Zeit, minütlich aktualisiert. */
+/** Current time, updated every minute. */
 @Composable
 fun rememberNow(): Long {
     val now by produceState(System.currentTimeMillis()) {
@@ -30,7 +30,7 @@ fun rememberNow(): Long {
     return now
 }
 
-// ponytail: auf UTC-halbe-Stunden gerundet; passt für alle Zeitzonen mit ganzen oder halben Stunden Versatz.
+// ponytail: rounded to UTC half hours; correct for all time zones with whole or half hour offsets.
 fun guideStart(now: Long) = now - now % HALF_HOUR
 
 @Composable
@@ -53,7 +53,7 @@ fun GuideHeader(start: Long, now: Long) {
 @Composable
 fun GuideRow(
     channel: Channel,
-    programmes: List<Programme>?, // null = lädt noch
+    programmes: List<Programme>?, // null = still loading
     start: Long,
     now: Long,
     favorite: Boolean,
@@ -94,7 +94,7 @@ fun GuideRow(
                 val visible = programmes.orEmpty().filter { it.end > start && it.start < end }
                 if (programmes != null && visible.isEmpty()) {
                     Text(
-                        "Keine Programminfo",
+                        "No programme info",
                         Modifier.align(Alignment.CenterStart).padding(start = 8.dp),
                         color = Color.White.copy(alpha = 0.3f),
                         style = MaterialTheme.typography.bodySmall,
@@ -114,7 +114,7 @@ fun GuideRow(
                             .clip(RoundedCornerShape(4.dp))
                             .background(if (running) Accent.copy(alpha = 0.15f) else Color.White.copy(alpha = 0.06f)),
                     ) {
-                        if (running) { // bereits gelaufener Teil der aktuellen Sendung
+                        if (running) { // elapsed part of the current programme
                             Box(
                                 Modifier
                                     .fillMaxHeight()
