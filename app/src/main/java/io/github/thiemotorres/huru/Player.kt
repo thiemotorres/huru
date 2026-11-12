@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Brush
@@ -150,7 +151,7 @@ internal fun InfoBar(channel: Channel, epg: List<Programme>, error: String?, now
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text("${channel.num}  ${channel.label}", style = MaterialTheme.typography.headlineSmall, color = Color.White)
             if (error != null) {
-                Text("Stream error: $error · press OK to retry", color = MaterialTheme.colorScheme.error)
+                Text(stringResource(R.string.stream_error, error), color = MaterialTheme.colorScheme.error)
             } else if (current != null) {
                 Text("${hhmm.format(Date(current.start))}–${hhmm.format(Date(current.end))}  ${current.title}", color = Color.White)
                 val progress = ((now - current.start).toFloat() / (current.end - current.start)).coerceIn(0f, 1f)
@@ -158,7 +159,7 @@ internal fun InfoBar(channel: Channel, epg: List<Programme>, error: String?, now
                     Box(Modifier.fillMaxWidth(progress).fillMaxHeight().background(Accent))
                 }
                 epg.getOrNull(1)?.let {
-                    Text("Next ${hhmm.format(Date(it.start))}  ${it.title}", color = Color.White.copy(alpha = 0.6f))
+                    Text(stringResource(R.string.next_programme, hhmm.format(Date(it.start)), it.title), color = Color.White.copy(alpha = 0.6f))
                 }
             }
         }

@@ -6,6 +6,8 @@ Guidance for AI agents and contributors working on **Huru**, an ad-free IPTV pla
 
 **Everything in English:** code, comments, UI strings, docs, commit messages, PR descriptions and issues. (Conversation with the maintainer may be in German; the repository is not.)
 
+**UI text is localized:** never hard-code user-visible text. Add it to `app/src/main/res/values/strings.xml` (English, default) **and** to every translation (`values-de/strings.xml`, …), then use `stringResource(R.string.…)`. Brand names and URLs stay literal.
+
 ## Build & test
 
 ```sh

@@ -17,6 +17,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
@@ -100,7 +101,7 @@ fun App(prefs: SharedPreferences) {
 fun ModeSwitch(mode: Int, onMode: (Int) -> Unit, focus: Boolean) {
     val requester = remember { FocusRequester() }
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        listOf("TV", "Movies", "Series", "About").forEachIndexed { i, label ->
+        listOf(R.string.mode_tv, R.string.mode_movies, R.string.mode_series, R.string.mode_about).map { stringResource(it) }.forEachIndexed { i, label ->
             Surface(
                 onClick = { if (i != mode) onMode(i) },
                 modifier = if (i == mode) Modifier.focusRequester(requester) else Modifier,
@@ -129,16 +130,18 @@ fun LoginScreen(onLogin: (Xtream) -> Unit) {
     val scope = rememberCoroutineScope()
     val keyboard = LocalSoftwareKeyboardController.current
     val focusManager = LocalFocusManager.current
+    val loginFailed = stringResource(R.string.login_failed, "%s")
+    val connectionFailed = stringResource(R.string.connection_failed)
 
     Column(
         Modifier.fillMaxSize().padding(48.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterVertically),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Text("Xtream login", style = MaterialTheme.typography.headlineMedium)
-        Field("Server (e.g. http://host:8080)", server, KeyboardType.Uri) { server = it }
-        Field("Username", user) { user = it }
-        Field("Password", pass, KeyboardType.Password, password = true) { pass = it }
+        Text(stringResource(R.string.login_title), style = MaterialTheme.typography.headlineMedium)
+        Field(stringResource(R.string.login_server), server, KeyboardType.Uri) { server = it }
+        Field(stringResource(R.string.login_user), user) { user = it }
+        Field(stringResource(R.string.login_password), pass, KeyboardType.Password, password = true) { pass = it }
         Button(enabled = !busy && server.isNotBlank(), onClick = {
             busy = true; error = null
             val x = Xtream(Account(server, user, pass))
@@ -150,9 +153,9 @@ fun LoginScreen(onLogin: (Xtream) -> Unit) {
                         focusManager.clearFocus(force = true)
                         onLogin(x)
                     }
-                    .onFailure { error = it.message ?: "Connection failed"; busy = false }
+                    .onFailure { error = it.message?.let { m -> loginFailed.format(m) } ?: connectionFailed; busy = false }
             }
-        }) { Text(if (busy) "Connecting…" else "Sign in") }
+        }) { Text(stringResource(if (busy) R.string.login_connecting else R.string.login_submit)) }
         error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
     }
 }
@@ -223,6 +226,7 @@ fun BrowseScreen(
     val epg = remember { mutableStateMapOf<Int, List<Programme>>() } // stream_id -> programmes, cached for the session
     fun channelsOf(cat: String?) =
         if (cat == FAVORITES) all.filter { it.id.toString() in favorites } else byCategory[cat].orEmpty()
+    val loadingFailed = stringResource(R.string.loading_failed)
 
     LaunchedEffect(x) {
         var started = false
@@ -248,22 +252,24 @@ fun BrowseScreen(
                 }
                 selected = if (favorites.isNotEmpty()) FAVORITES else categories?.firstOrNull()?.id
             }
-        }.onFailure { if (!started) error = it.message ?: "Loading failed" }
+        }.onFailure { if (!started) error = it.message ?: loadingFailed }
     }
 
     val loaded = categories
     if (loaded == null) {
         Column(Modifier.fillMaxSize(), Arrangement.Center, Alignment.CenterHorizontally) {
-            Text(error ?: "Loading channels…")
-            if (error != null) Button(onClick = onLogout, Modifier.padding(top = 16.dp)) { Text("Sign out") }
+            Text(error ?: stringResource(R.string.loading_channels))
+            if (error != null) Button(onClick = onLogout, Modifier.padding(top = 16.dp)) { Text(stringResource(R.string.sign_out)) }
         }
         return
     }
     val hiddenCount = loaded.count { it.id in hidden }
+    val favoritesLabel = stringResource(R.string.favorites)
+    val hiddenLabel = if (showHidden) stringResource(R.string.hide_hidden) else stringResource(R.string.hidden_count, hiddenCount)
     val cats = buildList {
-        if (favorites.isNotEmpty()) add(Category(FAVORITES, "★ Favorites"))
+        if (favorites.isNotEmpty()) add(Category(FAVORITES, favoritesLabel))
         addAll(if (showHidden) loaded else loaded.filter { it.id !in hidden })
-        if (hiddenCount > 0) add(Category(TOGGLE_HIDDEN, if (showHidden) "Hide hidden" else "$hiddenCount hidden"))
+        if (hiddenCount > 0) add(Category(TOGGLE_HIDDEN, hiddenLabel))
     }
     val channels = remember(selected, all, favorites) { channelsOf(selected) }
     val firstCategory = remember { FocusRequester() }

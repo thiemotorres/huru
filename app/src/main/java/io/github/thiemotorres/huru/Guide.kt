@@ -9,6 +9,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
@@ -94,7 +95,7 @@ fun GuideRow(
                 val visible = programmes.orEmpty().filter { it.end > start && it.start < end }
                 if (programmes != null && visible.isEmpty()) {
                     Text(
-                        "No programme info",
+                        stringResource(R.string.no_programme),
                         Modifier.align(Alignment.CenterStart).padding(start = 8.dp),
                         color = Color.White.copy(alpha = 0.3f),
                         style = MaterialTheme.typography.bodySmall,

@@ -6,6 +6,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
@@ -25,17 +26,15 @@ fun AboutScreen(header: @Composable () -> Unit, donate: Boolean = BuildConfig.DO
         ) {
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 Image(painterResource(R.drawable.wordmark), contentDescription = "Huru", Modifier.height(56.dp))
-                Text("Version $version", color = Color.White.copy(alpha = 0.6f))
+                Text(stringResource(R.string.about_version, version), color = Color.White.copy(alpha = 0.6f))
                 Spacer(Modifier.height(8.dp))
                 Text(
-                    "A clean, ad-free player for your own Xtream Codes subscription. " +
-                        "Huru does not provide any channels, movies or series.",
+                    stringResource(R.string.about_text),
                     style = MaterialTheme.typography.bodyLarge,
                 )
                 Text("github.com/thiemotorres/huru", color = Accent)
                 Text(
-                    "Source-available under the PolyForm Noncommercial License 1.0.0. " +
-                        "Commercial use is not permitted.",
+                    stringResource(R.string.about_license),
                     style = MaterialTheme.typography.bodySmall,
                     color = Color.White.copy(alpha = 0.6f),
                 )
@@ -43,10 +42,10 @@ fun AboutScreen(header: @Composable () -> Unit, donate: Boolean = BuildConfig.DO
             if (donate) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Image(
-                        painterResource(R.drawable.kofi_qr), contentDescription = "Ko-fi QR code",
+                        painterResource(R.drawable.kofi_qr), contentDescription = stringResource(R.string.about_donate_qr),
                         Modifier.size(200.dp).clip(RoundedCornerShape(12.dp)),
                     )
-                    Text("Enjoying Huru? Buy me a coffee", style = MaterialTheme.typography.titleSmall)
+                    Text(stringResource(R.string.about_donate), style = MaterialTheme.typography.titleSmall)
                     Text("ko-fi.com/thiemotorres", color = Color.White.copy(alpha = 0.6f))
                 }
             }

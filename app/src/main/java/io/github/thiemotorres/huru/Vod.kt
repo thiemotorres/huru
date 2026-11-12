@@ -21,6 +21,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.focus.*
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Brush
@@ -110,6 +111,7 @@ fun VodScreen(x: Xtream, series: Boolean, header: @Composable () -> Unit, autoFo
     val prefix = if (series) "ep-" else "movie-"
     val pickedFocus = remember { FocusRequester() }
     val firstCategory = remember { FocusRequester() }
+    val loadingFailed = stringResource(R.string.loading_failed)
 
     LaunchedEffect(series) {
         val actions =
@@ -122,7 +124,7 @@ fun VodScreen(x: Xtream, series: Boolean, header: @Composable () -> Unit, autoFo
                 categories = x.parseCategories(c).filter { byCategory[it.id] != null }
                 if (selected == null) selected = if (store.list(prefix).isNotEmpty()) CONTINUE else categories?.firstOrNull()?.id
             }
-        }.onFailure { if (categories == null) error = it.message ?: "Loading failed" }
+        }.onFailure { if (categories == null) error = it.message ?: loadingFailed }
     }
 
     val loaded = categories
@@ -130,16 +132,18 @@ fun VodScreen(x: Xtream, series: Boolean, header: @Composable () -> Unit, autoFo
         Column(Modifier.fillMaxSize().padding(24.dp)) {
             header()
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text(error ?: if (series) "Loading series…" else "Loading movies…")
+                Text(error ?: stringResource(if (series) R.string.loading_series else R.string.loading_movies))
             }
         }
         return
     }
     LaunchedEffect(Unit) { if (autoFocus) { awaitFrame(); runCatching { firstCategory.requestFocus() } } }
     val inProgress = remember(playing) { store.list(prefix) } // re-read after watching
+    val searchLabel = stringResource(R.string.search)
+    val continueLabel = stringResource(R.string.continue_watching)
     val cats = buildList {
-        add(Category(SEARCH, "Search"))
-        if (inProgress.isNotEmpty()) add(Category(CONTINUE, "▶ Continue watching"))
+        add(Category(SEARCH, searchLabel))
+        if (inProgress.isNotEmpty()) add(Category(CONTINUE, continueLabel))
         addAll(loaded)
     }
     val all = remember(byCategory) { byCategory.values.flatten().map { it to searchKey(it.name) } }
@@ -180,7 +184,7 @@ fun VodScreen(x: Xtream, series: Boolean, header: @Composable () -> Unit, autoFo
             }
             Column(Modifier.weight(1f)) {
             if (selected == SEARCH) {
-                Field("Search titles (at least 2 characters)", query, imeAction = ImeAction.Search) { query = it }
+                Field(stringResource(R.string.search_hint), query, imeAction = ImeAction.Search) { query = it }
                 Spacer(Modifier.height(12.dp))
             }
             LazyVerticalGrid(
@@ -304,13 +308,14 @@ private fun SeriesDetail(
     var error by remember { mutableStateOf<String?>(null) }
     var season by remember { mutableStateOf<Int?>(null) }
     val firstEpisode = remember { FocusRequester() }
+    val loadingFailed = stringResource(R.string.loading_failed)
     var lastEpisode by remember { mutableStateOf<String?>(null) }
     val lastEpisodeFocus = remember { FocusRequester() }
 
     LaunchedEffect(series.id) {
         runCatching { x.episodes(series) }
             .onSuccess { episodes = it; season = it.firstOrNull()?.season }
-            .onFailure { error = it.message ?: "Loading failed" }
+            .onFailure { error = it.message ?: loadingFailed }
     }
     LaunchedEffect(episodes != null) {
         if (episodes != null) { awaitFrame(); runCatching { firstEpisode.requestFocus() } }
@@ -342,8 +347,8 @@ private fun SeriesDetail(
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(16.dp)) {
             when {
                 error != null -> Text(error!!)
-                episodes == null -> Text("Loading episodes…")
-                episodes!!.isEmpty() -> Text("No episodes found")
+                episodes == null -> Text(stringResource(R.string.loading_episodes))
+                episodes!!.isEmpty() -> Text(stringResource(R.string.no_episodes))
             }
             if (seasons.size > 1) {
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -352,7 +357,7 @@ private fun SeriesDetail(
                             selected = s == season,
                             onClick = { season = s },
                             modifier = Modifier.onFocusChanged { if (it.isFocused) season = s },
-                        ) { Text("Season $s") }
+                        ) { Text(stringResource(R.string.season, s)) }
                     }
                 }
             }
@@ -367,7 +372,7 @@ private fun SeriesDetail(
                         headlineContent = {
                             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                                 Text(
-                                    if (title.isEmpty()) "Episode ${ep.num}" else "${ep.num}. $title",
+                                    if (title.isEmpty()) stringResource(R.string.episode, ep.num) else "${ep.num}. $title",
                                     Modifier.weight(1f, fill = false),
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis,
@@ -376,7 +381,7 @@ private fun SeriesDetail(
                             }
                         },
                         supportingContent = ep.plot?.let { { Text(it, maxLines = 1, overflow = TextOverflow.Ellipsis) } },
-                        trailingContent = if (at > 0) { { Text("at ${duration(at)}", color = Accent) } } else null,
+                        trailingContent = if (at > 0) { { Text(stringResource(R.string.resume_at, duration(at)), color = Accent) } } else null,
                         modifier = when {
                             ep.id == lastEpisode -> Modifier.focusRequester(lastEpisodeFocus)
                             ep == shown.first() -> Modifier.focusRequester(firstEpisode)
@@ -468,7 +473,7 @@ fun VodPlayer(playback: Playback, onEnded: () -> Unit, onExit: () -> Unit) {
     ) {
         VideoSurface(player)
         if (buffering && error == null) {
-            Text("Loading…", Modifier.align(Alignment.Center), color = Color.White.copy(alpha = 0.7f))
+            Text(stringResource(R.string.loading), Modifier.align(Alignment.Center), color = Color.White.copy(alpha = 0.7f))
         }
         AnimatedVisibility(
             visible = overlay || paused || error != null,
@@ -483,7 +488,7 @@ fun VodPlayer(playback: Playback, onEnded: () -> Unit, onExit: () -> Unit) {
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 Text((if (paused) "❚❚  " else "") + playback.title, style = MaterialTheme.typography.headlineSmall, color = Color.White)
-                error?.let { Text("Error: $it · press OK to retry", color = MaterialTheme.colorScheme.error) }
+                error?.let { Text(stringResource(R.string.playback_error, it), color = MaterialTheme.colorScheme.error) }
                 val progress = if (length > 0) (position.toFloat() / length).coerceIn(0f, 1f) else 0f
                 Box(Modifier.fillMaxWidth().height(4.dp).background(Color.White.copy(alpha = 0.2f))) {
                     Box(Modifier.fillMaxWidth(progress).fillMaxHeight().background(Accent))

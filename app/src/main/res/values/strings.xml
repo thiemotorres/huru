@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- UI strings, English (default). Translations live in values-<lang>/strings.xml. -->
+<resources>
+    <string name="mode_tv">TV</string>
+    <string name="mode_movies">Movies</string>
+    <string name="mode_series">Series</string>
+    <string name="mode_about">About</string>
+
+    <string name="login_title">Xtream login</string>
+    <string name="login_server">Server (e.g. http://host:8080)</string>
+    <string name="login_user">Username</string>
+    <string name="login_password">Password</string>
+    <string name="login_submit">Sign in</string>
+    <string name="login_connecting">Connecting…</string>
+    <string name="login_failed">Couldn\'t sign in: %1$s</string>
+    <string name="connection_failed">Connection failed</string>
+    <string name="sign_out">Sign out</string>
+
+    <string name="loading_failed">Loading failed</string>
+    <string name="loading_channels">Loading channels…</string>
+    <string name="loading_movies">Loading movies…</string>
+    <string name="loading_series">Loading series…</string>
+    <string name="loading_episodes">Loading episodes…</string>
+    <string name="loading">Loading…</string>
+
+    <string name="favorites">★ Favorites</string>
+    <string name="hidden_count">%1$d hidden</string>
+    <string name="hide_hidden">Hide hidden</string>
+    <string name="no_programme">No programme info</string>
+    <string name="next_programme">Next %1$s  %2$s</string>
+    <string name="stream_error">Stream error: %1$s · press OK to retry</string>
+
+    <string name="search">Search</string>
+    <string name="search_hint">Search titles (at least 2 characters)</string>
+    <string name="continue_watching">▶ Continue watching</string>
+    <string name="no_episodes">No episodes found</string>
+    <string name="season">Season %1$d</string>
+    <string name="episode">Episode %1$d</string>
+    <string name="resume_at">at %1$s</string>
+    <string name="playback_error">Error: %1$s · press OK to retry</string>
+
+    <string name="about_version">Version %1$s</string>
+    <string name="about_text">A clean, ad-free player for your own Xtream Codes subscription. Huru does not provide any channels, movies or series.</string>
+    <string name="about_license">Source-available under the PolyForm Noncommercial License 1.0.0. Commercial use is not permitted.</string>
+    <string name="about_donate">Enjoying Huru? Buy me a coffee</string>
+    <string name="about_donate_qr">Ko-fi QR code</string>
+</resources>

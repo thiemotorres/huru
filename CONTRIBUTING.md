@@ -10,13 +10,14 @@ Thanks for helping! Huru is a small, focused app – these rules keep it that wa
 
 ## Rules
 
-1. **English everywhere:** code, comments, UI strings, commit messages, issues and PRs.
-2. **Small, focused PRs:** one change per PR, with a short description of what and why.
-3. **No new dependencies** without discussing it in an issue first. Prefer the platform and the standard library.
-4. **Built for the remote:** every feature must be fully usable with a D-pad. Test focus handling – it is the most common source of bugs.
-5. **Tests:** pure logic (parsing, text helpers) gets a small JUnit test in `app/src/test`.
-6. **UI changes:** update the mockups (`./gradlew recordPaparazziDebug`, then copy the changed images from `app/src/test/snapshots/images/` to `docs/screenshots/`).
-7. Deliberate shortcuts are marked with a `// ponytail:` comment that names the limit and the upgrade path.
+1. **English everywhere:** code, comments, commit messages, issues and PRs.
+2. **Localized UI:** no hard-coded user-visible text. Add new strings to `res/values/strings.xml` (English) and to all translations in `res/values-<lang>/`. **New translations are very welcome** – copy `values/strings.xml` to `values-<lang>/strings.xml` and translate it.
+3. **Small, focused PRs:** one change per PR, with a short description of what and why.
+4. **No new dependencies** without discussing it in an issue first. Prefer the platform and the standard library.
+5. **Built for the remote:** every feature must be fully usable with a D-pad. Test focus handling – it is the most common source of bugs.
+6. **Tests:** pure logic (parsing, text helpers) gets a small JUnit test in `app/src/test`.
+7. **UI changes:** update the mockups (`./gradlew recordPaparazziDebug`, then copy the changed images from `app/src/test/snapshots/images/` to `docs/screenshots/`).
+8. Deliberate shortcuts are marked with a `// ponytail:` comment that names the limit and the upgrade path.
 
 ## Checks
 
