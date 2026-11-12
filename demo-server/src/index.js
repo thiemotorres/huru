@@ -5,13 +5,13 @@
 const USER = "demo";
 const PASS = "demo";
 
-// Live "channels": public HLS test streams (Akamai, Unified Streaming, Mux, Apple).
+// Live "channels": public HLS test streams (Unified Streaming, Apple, Mux).
 const LIVE_CATEGORIES = [
   { category_id: "1", category_name: "Test streams", parent_id: 0 },
   { category_id: "2", category_name: "Open movies", parent_id: 0 },
 ];
 const LIVE = [
-  { id: 1, name: "Akamai Live Test HD", cat: "1", url: "https://cph-p2p-msl.akamaized.net/hls/live/2000341/test/master.m3u8",
+  { id: 1, name: "Unified Live Demo HD", cat: "1", url: "https://demo.unified-streaming.com/k8s/live/stable/live.isml/.m3u8",
     shows: ["Live Test Pattern", "Clock & Tone", "Signal Check"] },
   { id: 2, name: "Apple BipBop", cat: "1", url: "https://devstreaming-cdn.apple.com/videos/streaming/examples/img_bipbop_adv_example_fmp4/master.m3u8",
     shows: ["BipBop", "Colour Bars", "Audio Sync"] },

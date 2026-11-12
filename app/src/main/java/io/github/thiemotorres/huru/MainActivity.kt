@@ -17,7 +17,9 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.key.*
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
@@ -92,7 +94,8 @@ fun App(prefs: SharedPreferences) {
                 onLogout = { prefs.save(null); xtream = null },
             )
             3 -> AboutScreen(header)
-            else -> VodScreen(x, series = mode == 2, header, autoFocus = !switched)
+            // key: movies and series must not share state (selected category, continue-watching list, …)
+            else -> key(mode) { VodScreen(x, series = mode == 2, header, autoFocus = !switched) }
         }
     }
 }
@@ -160,6 +163,10 @@ fun LoginScreen(onLogin: (Xtream) -> Unit) {
     }
 }
 
+/**
+ * Text input for the remote: a focusable box that shows the value; OK switches to editing and opens the keyboard.
+ * (A plain text field would pop up the full-screen Fire TV keyboard as soon as D-pad focus touches it.)
+ */
 @Composable
 fun Field(
     label: String,
@@ -169,25 +176,77 @@ fun Field(
     imeAction: ImeAction = ImeAction.Next,
     onChange: (String) -> Unit,
 ) {
+    var editing by remember { mutableStateOf(false) }
     var focused by remember { mutableStateOf(false) }
     val keyboard = LocalSoftwareKeyboardController.current
+    val editor = remember { FocusRequester() }
+    val idle = remember { FocusRequester() }
+    val focusManager = LocalFocusManager.current
+    var leaving by remember { mutableStateOf(false) } // focus moves on deliberately (Next / D-pad up/down)
+    var refocus by remember { mutableIntStateOf(0) }
+    val box = Modifier.fillMaxWidth().height(52.dp)
+    val shape = RoundedCornerShape(8.dp)
     Column(Modifier.width(480.dp)) {
         Text(label, style = MaterialTheme.typography.labelMedium)
-        BasicTextField(
-            value = value,
-            onValueChange = onChange,
-            singleLine = true,
-            textStyle = TextStyle(color = Color.White, fontSize = 18.sp),
-            cursorBrush = SolidColor(Accent),
-            visualTransformation = if (password) PasswordVisualTransformation() else VisualTransformation.None,
-            keyboardOptions = KeyboardOptions(keyboardType = type, imeAction = imeAction),
-            keyboardActions = KeyboardActions(onSearch = { keyboard?.hide() }),
-            modifier = Modifier
-                .fillMaxWidth()
-                .onFocusChanged { focused = it.isFocused }
-                .border(2.dp, if (focused) Accent else Color.DarkGray, RoundedCornerShape(8.dp))
-                .padding(12.dp),
-        )
+        if (editing) {
+            BasicTextField(
+                value = value,
+                onValueChange = onChange,
+                singleLine = true,
+                textStyle = TextStyle(color = Color.White, fontSize = 18.sp),
+                cursorBrush = SolidColor(Accent),
+                visualTransformation = if (password) PasswordVisualTransformation() else VisualTransformation.None,
+                keyboardOptions = KeyboardOptions(keyboardType = type, imeAction = imeAction),
+                keyboardActions = KeyboardActions(
+                    onNext = { leaving = true; focusManager.moveFocus(FocusDirection.Down) },
+                    onSearch = { keyboard?.hide() },
+                ),
+                modifier = box
+                    .focusRequester(editor)
+                    .onFocusChanged { // leave editing only after having had focus (it also reports "unfocused" on attach)
+                        if (it.isFocused) focused = true
+                        else if (focused) {
+                            // Closing the keyboard with Back drops focus somewhere else: bring it back to this field.
+                            focused = false; editing = false
+                            if (!leaving) refocus++
+                            leaving = false
+                        }
+                    }
+                    .onPreviewKeyEvent { e ->
+                        if (e.type != KeyEventType.KeyDown) false
+                        else when (e.key) {
+                            Key.DirectionCenter, Key.Enter -> { keyboard?.show(); true } // reopen after Back
+                            Key.DirectionUp, Key.DirectionDown -> { leaving = true; false }
+                            else -> false
+                        }
+                    }
+                    .border(2.dp, Accent, shape)
+                    .padding(horizontal = 12.dp, vertical = 14.dp),
+            )
+            LaunchedEffect(Unit) { editor.requestFocus(); keyboard?.show() }
+        } else {
+            LaunchedEffect(refocus) { if (refocus > 0) { awaitFrame(); runCatching { idle.requestFocus() } } }
+            Surface(
+                onClick = { editing = true },
+                modifier = box.focusRequester(idle),
+                shape = ClickableSurfaceDefaults.shape(shape),
+                scale = ClickableSurfaceDefaults.scale(focusedScale = 1f),
+                colors = ClickableSurfaceDefaults.colors(
+                    containerColor = Color.Transparent, focusedContainerColor = Color.White.copy(alpha = 0.06f),
+                    contentColor = Color.White, focusedContentColor = Color.White,
+                ),
+                border = ClickableSurfaceDefaults.border(
+                    border = Border(androidx.compose.foundation.BorderStroke(2.dp, Color.DarkGray), shape = shape),
+                    focusedBorder = Border(androidx.compose.foundation.BorderStroke(2.dp, Accent), shape = shape),
+                ),
+            ) {
+                Text(
+                    if (password) "•".repeat(value.length) else value,
+                    Modifier.align(Alignment.CenterStart).padding(horizontal = 12.dp),
+                    fontSize = 18.sp, maxLines = 1,
+                )
+            }
+        }
     }
 }
 
