@@ -74,7 +74,7 @@ fun Player(
     onStartOver: (Channel, Programme) -> Unit,
     reminders: Set<Reminder>,
     onRemind: (Reminder) -> Unit,
-    onExit: (Int) -> Unit,
+    onExit: (Channel) -> Unit, // the channel being watched
 ) {
     val context = LocalContext.current
     // Pin the list on start: a background refresh must not switch the channel mid-viewing.
@@ -130,6 +130,9 @@ fun Player(
         overlayTick++
         epg = emptyList()
         epg = runCatching { x.shortEpg(channel) }.getOrDefault(emptyList())
+    }
+    // Separate from the guide request above, which can take long (big XMLTV files, slow servers).
+    LaunchedEffect(channel) {
         delay(10_000) // only channels you stay on count as watched, not every zap
         onWatched(channel)
     }
@@ -148,7 +151,7 @@ fun Player(
     LaunchedEffect(Unit) { keyboard?.hide() }
     // Also after the menu: its focus trap cancels a request made while it is still on screen.
     LaunchedEffect(menu) { if (!menu) runCatching { focus.requestFocus() } }
-    BackHandler { onExit(index) }
+    BackHandler { onExit(channels[index]) }
 
     Box(
         Modifier
@@ -179,7 +182,7 @@ fun Player(
             .focusRequester(focus)
             .focusable(),
     ) {
-        VideoSurface(player) { onExit(index) }
+        VideoSurface(player) { onExit(channels[index]) }
         AnimatedVisibility(
             visible = overlay || paused || error != null,
             enter = fadeIn(), exit = fadeOut(),

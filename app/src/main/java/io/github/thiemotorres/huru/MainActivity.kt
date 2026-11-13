@@ -274,6 +274,7 @@ fun BrowseScreen(
     // Recently watched channel ids, newest first.
     fun readRecent() = lastPrefs.getString("recent", "")!!.split(',').mapNotNull { it.toIntOrNull() }
     var recent by remember { mutableStateOf(readRecent()) }
+    fun saveRecent(ids: List<Int>) { recent = ids; lastPrefs.edit().putString("recent", ids.joinToString(",")).apply() }
     val catPrefs = context.sourcePrefs("categories", x.account)
     var hidden by remember { mutableStateOf(catPrefs.getStringSet("hidden", emptySet())!!.toSet()) }
     var showHidden by remember { mutableStateOf(false) }
@@ -283,6 +284,8 @@ fun BrowseScreen(
     }
     var error by remember { mutableStateOf<String?>(null) }
     var selected by remember { mutableStateOf<String?>(null) }
+    var hovered by remember { mutableStateOf<String?>(null) } // focused category, becomes selected once scrolling pauses
+    LaunchedEffect(hovered) { hovered?.let { delay(150); selected = it } }
     var playing by remember { mutableStateOf<Int?>(null) } // index within the current category
     var returnTo by remember { mutableStateOf<Int?>(null) }
     var refocus by remember { mutableIntStateOf(0) } // re-run the focus restore even if returnTo is unchanged
@@ -333,8 +336,13 @@ fun BrowseScreen(
                 if (autoplay) {
                     onAutoplayed()
                     // Start straight into the last watched channel if it still exists.
+                    // Its own category if it is gone from the one it was watched in (unfavourited, removed from recent).
+                    val id = lastPrefs.getInt("channel", -1)
+                    val closedNow = lock.closedIds("live", cats)
                     val lastCategory = lastPrefs.getString("category", null)
-                    val last = channelsOf(lastCategory, lock.closedIds("live", cats)).indexOfFirst { it.id == lastPrefs.getInt("channel", -1) }
+                        ?.takeIf { c -> channelsOf(c, closedNow).any { it.id == id } }
+                        ?: chans.firstOrNull { it.id == id }?.categoryId
+                    val last = channelsOf(lastCategory, closedNow).indexOfFirst { it.id == id }
                     if (last >= 0) {
                         selected = lastCategory
                         playing = last
@@ -375,6 +383,7 @@ fun BrowseScreen(
     }
     val channelFocus = remember { FocusRequester() }
     val channelList = rememberLazyListState()
+    val scope = rememberCoroutineScope()
 
     LaunchedEffect(Unit) { awaitFrame(); if (autoFocus && playing == null) runCatching { firstCategory.requestFocus() } }
     LaunchedEffect(returnTo, refocus) {
@@ -434,7 +443,13 @@ fun BrowseScreen(
                                 // Start on the selected category (not on Search at the top).
                                 .then(if (cat.id == selected || selected == null && i == 0) Modifier.focusRequester(firstCategory) else Modifier)
                                 .then(if (cat.id == focusCat) Modifier.focusRequester(catFocus) else Modifier)
-                                .onFocusChanged { if (it.isFocused && cat.id != TOGGLE_HIDDEN && !typing) selected = cat.id },
+                                .onFocusChanged { if (it.isFocused && cat.id != TOGGLE_HIDDEN && !typing) hovered = cat.id }
+                                .onPreviewKeyEvent { e ->
+                                    // Right before the pause: show this category now and enter it at the top.
+                                    if (e.key == Key.DirectionRight && e.type == KeyEventType.KeyDown && hovered == cat.id && selected != cat.id) {
+                                        selected = cat.id; returnTo = 0; refocus++; true
+                                    } else false
+                                },
                         )
                     }
                 }
@@ -465,7 +480,18 @@ fun BrowseScreen(
                             now = now,
                             favorite = ch.id.toString() in favorites,
                             onClick = { returnTo = null; playing = i },
-                            onLongClick = { toggleFavorite(ch) },
+                            // In "Recently watched" long-press removes the entry instead; focus moves to the next row.
+                            onLongClick = {
+                                if (selected != RECENT) toggleFavorite(ch)
+                                else {
+                                    saveRecent(recent - ch.id)
+                                    if (channels.size > 1) { returnTo = i.coerceAtMost(channels.size - 2); refocus++ }
+                                    else {
+                                        selected = loaded.firstOrNull { it.id !in hidden }?.id
+                                        scope.launch { awaitFrame(); runCatching { firstCategory.requestFocus() } }
+                                    }
+                                }
+                            },
                             modifier = (if (i == returnTo) Modifier.focusRequester(channelFocus) else Modifier)
                                 .onPreviewKeyEvent { e ->
                                     // Right on a catch-up channel opens its recordings.
@@ -480,22 +506,17 @@ fun BrowseScreen(
             Player(
                 x, channels, start,
                 onChannel = { lastPrefs.edit().putString("category", selected).putInt("channel", it.id).apply() },
-                onWatched = { ch ->
-                    // Saved right away, shown on exit: reordering the list under the player would shift returnTo.
-                    val ids = (listOf(ch.id) + readRecent().filter { it != ch.id }).take(10)
-                    lastPrefs.edit().putString("recent", ids.joinToString(",")).apply()
-                },
+                // The player keeps its own copy of the list, so reordering it underneath is safe.
+                onWatched = { ch -> saveRecent((listOf(ch.id) + recent.filter { it != ch.id }).take(10)) },
                 onStartOver = { ch, p ->
                     x.archiveUrl(ch, p)?.let {
                         replay = Playback(it, "${ch.label} · ${p.title}", "archive", ch.logo)
                         liveAfter = ch; backToLive = true; playing = null
                     }
                 },
-                onExit = { last ->
-                    val id = channels.getOrNull(last)?.id
-                    recent = readRecent()
+                onExit = { ch ->
                     playing = null
-                    returnTo = channelsOf(selected, closed).indexOfFirst { it.id == id }.takeIf { it >= 0 } ?: last
+                    returnTo = channelsOf(selected, closed).indexOfFirst { it.id == ch.id }.coerceAtLeast(0)
                 },
                 reminders = reminders,
                 onRemind = { saveReminders(if (it in reminders) reminders - it else reminders + it) },
