@@ -101,4 +101,8 @@
     <string name="source_type_m3u">M3U-Playlist</string>
     <string name="login_playlist">Playlist-URL</string>
     <string name="login_epg">EPG-URL (XMLTV, optional)</string>
+    <string name="reminder">Erinnerung</string>
+    <string name="reminder_banner">🔔 %1$s  %2$s auf %3$s</string>
+    <string name="reminder_actions">OK umschalten · Zurück schließen</string>
+    <string name="previous_hint">▶ Zurück zu %1$s</string>
 </resources>

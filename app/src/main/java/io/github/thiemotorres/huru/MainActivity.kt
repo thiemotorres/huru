@@ -295,6 +295,14 @@ fun BrowseScreen(
     var replay by remember { mutableStateOf<Playback?>(null) } // catch-up recording playing
     var liveAfter by remember { mutableStateOf<Channel?>(null) } // start-over: go live when the recording runs out
     var backToLive by remember { mutableStateOf(false) } // start-over came from the live player: Back returns there
+    var playerKey by remember { mutableIntStateOf(0) } // restarts the player on a channel chosen from outside it
+    val remindPrefs = context.sourcePrefs("reminders", x.account)
+    var reminders by remember {
+        val stale = System.currentTimeMillis() - 15 * 60_000
+        mutableStateOf(remindPrefs.getStringSet("all", emptySet())!!.mapNotNull(::decodeReminder).filter { it.start > stale }.toSet())
+    }
+    fun saveReminders(r: Set<Reminder>) { reminders = r; remindPrefs.edit().putStringSet("all", r.map { it.encode() }.toSet()).apply() }
+    var due by remember { mutableStateOf<Reminder?>(null) } // banner shown for this one
     var query by remember { mutableStateOf("") }
     var typing by remember { mutableStateOf(false) } // search keyboard open: stray focus must not switch the category
     val searchIndex = remember(all) { all.map { it to searchKey(it.name) } }
@@ -376,7 +384,35 @@ fun BrowseScreen(
         runCatching { channelFocus.requestFocus() }
     }
 
-    Box(Modifier.fillMaxSize()) {
+    // ponytail: reminders only show while live TV is open (not in Movies/Series or with the app closed);
+    // an AlarmManager notification would cover those.
+    LaunchedEffect(reminders, playing) {
+        while (true) {
+            val now = System.currentTimeMillis()
+            val watching = if (playing != null) lastPrefs.getInt("channel", -1) else null
+            reminders.firstOrNull { it.channelId == watching && now >= it.start - 120_000 }?.let { saveReminders(reminders - it) }
+            due = reminders.filter { now in it.start - 120_000..it.start + 15 * 60_000 && all.any { c -> c.id == it.channelId } }.minByOrNull { it.start }
+            delay(15_000)
+        }
+    }
+    fun switchTo(r: Reminder) {
+        saveReminders(reminders - r)
+        val ch = all.firstOrNull { it.id == r.channelId } ?: return
+        if (ch.categoryId in closed) return
+        replay = null; liveAfter = null; backToLive = false; archiveOf = null
+        selected = ch.categoryId
+        playing = byCategory[ch.categoryId].orEmpty().indexOf(ch).takeIf { it >= 0 } ?: return
+        playerKey++
+    }
+
+    Box(Modifier.fillMaxSize().onPreviewKeyEvent { e ->
+        val r = due ?: return@onPreviewKeyEvent false
+        when (e.key) {
+            Key.DirectionCenter, Key.Enter -> { if (e.type == KeyEventType.KeyDown) { due = null; switchTo(r) }; true }
+            Key.Back -> { if (e.type == KeyEventType.KeyDown) { due = null; saveReminders(reminders - r) }; true }
+            else -> false
+        }
+    }) {
         Row(Modifier.fillMaxSize().padding(24.dp), horizontalArrangement = Arrangement.spacedBy(24.dp)) {
             Column(Modifier.width(260.dp)) {
                 header()
@@ -440,7 +476,7 @@ fun BrowseScreen(
                 }
             }
         }
-        playing?.let { start ->
+        playing?.let { start -> key(playerKey) {
             Player(
                 x, channels, start,
                 onChannel = { lastPrefs.edit().putString("category", selected).putInt("channel", it.id).apply() },
@@ -461,8 +497,10 @@ fun BrowseScreen(
                     playing = null
                     returnTo = channelsOf(selected, closed).indexOfFirst { it.id == id }.takeIf { it >= 0 } ?: last
                 },
+                reminders = reminders,
+                onRemind = { saveReminders(if (it in reminders) reminders - it else reminders + it) },
             )
-        }
+        } }
         archiveOf?.let { ch ->
             ArchivePanel(
                 x, ch, active = replay == null,
@@ -503,6 +541,7 @@ fun BrowseScreen(
             )
         }
         gate?.let { action -> PinGate(lock, onOk = { action(); gate = null }, onCancel = { gate = null }) }
+        due?.let { r -> all.firstOrNull { it.id == r.channelId }?.let { ReminderBanner(r, it, Modifier.align(Alignment.TopCenter)) } }
     }
 }
 

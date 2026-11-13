@@ -10,7 +10,7 @@ import java.util.UUID
 val DEMO_SOURCE = Account("https://huru-demo.feto.dev", "demo", "demo", name = "Huru Demo")
 
 /** Per-source data files; they are deleted together with the source. */
-private val SOURCE_PREFS = listOf("favorites", "last", "categories", "continue")
+private val SOURCE_PREFS = listOf("favorites", "last", "categories", "continue", "reminders")
 
 // ponytail: credentials stored in plain text in app-private SharedPreferences. Fine for a personal device.
 /** Saved sources and the active one. Migrates the single account of earlier versions as source "". */

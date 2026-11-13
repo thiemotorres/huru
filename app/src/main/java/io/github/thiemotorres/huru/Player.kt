@@ -59,7 +59,10 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-/** Full-screen live player. Up/Down (or CH+/CH−) zaps within the category, OK shows info, Back exits. */
+/**
+ * Full-screen live player. Up/Down (or CH+/CH−) zaps within the category, Right returns to the previous channel,
+ * OK shows info, Back exits.
+ */
 @Composable
 @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class) // DefaultLoadControl
 fun Player(
@@ -69,6 +72,8 @@ fun Player(
     onChannel: (Channel) -> Unit,
     onWatched: (Channel) -> Unit,
     onStartOver: (Channel, Programme) -> Unit,
+    reminders: Set<Reminder>,
+    onRemind: (Reminder) -> Unit,
     onExit: (Int) -> Unit,
 ) {
     val context = LocalContext.current
@@ -84,6 +89,8 @@ fun Player(
     var overlay by remember { mutableStateOf(true) }
     var paused by remember { mutableStateOf(false) }
     var menu by remember { mutableStateOf(false) }
+    var shown by remember { mutableIntStateOf(start) }
+    var previous by remember { mutableStateOf<Int?>(null) } // channel before the current one (Right)
     val channel = channels[index]
 
     // Reads index state, not channel: the error listener below is created once and calls this later.
@@ -114,6 +121,7 @@ fun Player(
     DisposableEffect(Unit) { onDispose { player.release() } }
 
     LaunchedEffect(channel) {
+        if (index != shown) { previous = shown; shown = index }
         reconnect.reset()
         paused = false // zapping always plays the new channel
         player.playWhenReady = true
@@ -137,7 +145,9 @@ fun Player(
 
     val focus = remember { FocusRequester() }
     val keyboard = LocalSoftwareKeyboardController.current
-    LaunchedEffect(Unit) { keyboard?.hide(); focus.requestFocus() }
+    LaunchedEffect(Unit) { keyboard?.hide() }
+    // Also after the menu: its focus trap cancels a request made while it is still on screen.
+    LaunchedEffect(menu) { if (!menu) runCatching { focus.requestFocus() } }
     BackHandler { onExit(index) }
 
     Box(
@@ -152,6 +162,8 @@ fun Player(
                     Key.DirectionDown, Key.ChannelDown -> { index = (index + 1) % channels.size; true }
                     Key.DirectionCenter, Key.Enter -> { if (error != null) { reconnect.reset(); play(player) }; overlayTick++; true }
                     // Remote Play/Pause (required for Fire TV media apps); resuming jumps back to the live edge.
+                    // Continuing from the pause via catch-up was tried: panels serve recordings from a programme's start only
+                    // and break off range requests into the running one.
                     Key.MediaPlayPause, Key.MediaPlay, Key.MediaPause -> {
                         paused = !paused
                         if (!paused) player.seekToDefaultPosition()
@@ -160,7 +172,7 @@ fun Player(
                         true
                     }
                     Key.DirectionLeft -> { startOver(channel, epg)?.let { onStartOver(channel, it) }; true }
-                    Key.DirectionRight -> true // don't let focus escape into the list behind
+                    Key.DirectionRight -> { previous?.let { index = it }; true } // also keeps focus from escaping
                     else -> digit(e)?.let { if (typed.length < 4) typed += it; true } ?: false
                 }
             }
@@ -173,9 +185,19 @@ fun Player(
             enter = fadeIn(), exit = fadeOut(),
             modifier = Modifier.align(Alignment.BottomCenter),
         ) {
-            InfoBar(channel, epg, error, paused = paused, startOver = startOver(channel, epg) != null)
+            val next = epg.getOrNull(1)
+            InfoBar(
+                channel, epg, error, paused = paused, startOver = startOver(channel, epg) != null,
+                previous = previous?.let { channels.getOrNull(it) }, reminded = next != null && next.reminder(channel) in reminders,
+            )
         }
-        if (menu) TrackMenu(player, { menu = false; focus.requestFocus() }, Modifier.align(Alignment.CenterEnd))
+        if (menu) {
+            val next = epg.getOrNull(1)?.reminder(channel)
+            TrackMenu(
+                player, { menu = false }, Modifier.align(Alignment.CenterEnd),
+                remind = next, reminded = next in reminders, onRemind = { next?.let(onRemind) },
+            )
+        }
         if (typed.isNotEmpty()) Text(
             typed,
             Modifier.align(Alignment.TopEnd).padding(48.dp).background(Color.Black.copy(alpha = 0.7f)).padding(horizontal = 20.dp, vertical = 8.dp),
@@ -315,7 +337,14 @@ fun VideoSurface(player: ExoPlayer, onSleep: () -> Unit) {
 /** Audio and subtitle choice (Menu key), shared by the live and VOD player. Traps focus until closed. */
 @Composable
 @OptIn(ExperimentalComposeUiApi::class) // focusProperties exit
-fun TrackMenu(player: ExoPlayer, onClose: () -> Unit, modifier: Modifier = Modifier) {
+fun TrackMenu(
+    player: ExoPlayer,
+    onClose: () -> Unit,
+    modifier: Modifier = Modifier,
+    remind: Reminder? = null, // live player: the next programme
+    reminded: Boolean = false,
+    onRemind: () -> Unit = {},
+) {
     var tracks by remember { mutableStateOf(player.currentTracks) }
     DisposableEffect(player) {
         val listener = object : MediaPlayer.Listener {
@@ -404,6 +433,10 @@ fun TrackMenu(player: ExoPlayer, onClose: () -> Unit, modifier: Modifier = Modif
                 },
             )
         }
+        if (remind != null) {
+            item { Heading(stringResource(R.string.reminder)) }
+            item { Option("${hhmm.format(Date(remind.start))}  ${remind.title}", reminded, onRemind) }
+        }
     }
 }
 
@@ -441,6 +474,8 @@ internal fun InfoBar(
     now: Long = System.currentTimeMillis(),
     paused: Boolean = false,
     startOver: Boolean = false,
+    previous: Channel? = null,
+    reminded: Boolean = false,
 ) {
     val current = epg.firstOrNull()
     Row(
@@ -463,10 +498,17 @@ internal fun InfoBar(
                     Box(Modifier.fillMaxWidth(progress).fillMaxHeight().background(Accent))
                 }
                 epg.getOrNull(1)?.let {
-                    Text(stringResource(R.string.next_programme, hhmm.format(Date(it.start)), it.title), color = Color.White.copy(alpha = 0.6f))
+                    Text(
+                        stringResource(R.string.next_programme, hhmm.format(Date(it.start)), it.title) + if (reminded) "  🔔" else "",
+                        color = Color.White.copy(alpha = 0.6f),
+                    )
                 }
-                if (startOver) Text(stringResource(R.string.start_over_hint), color = Accent)
             }
+            val hints = listOfNotNull(
+                stringResource(R.string.start_over_hint).takeIf { startOver && error == null },
+                previous?.let { stringResource(R.string.previous_hint, it.label) },
+            )
+            if (hints.isNotEmpty()) Text(hints.joinToString("   "), color = Accent)
         }
     }
 }

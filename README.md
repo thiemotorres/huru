@@ -19,7 +19,8 @@ https://github.com/user-attachments/assets/ce6b96bf-3270-40b1-a0a2-a3e2cd4b5fda
 ## Features
 
 - **Live TV** with a programme guide (EPG) built into the channel list, favourites and hideable categories
-- **Fast zapping:** Up/Down in the player, starts straight into the last watched channel
+- **Fast zapping:** Up/Down, channel numbers or Right for the previous channel; starts straight into the last watched channel
+- **Reminders** for the next programme (Menu in the player), with one-press switching when it starts
 - **Movies & series** as a poster grid with search, "Continue watching" and automatic next episode
 - **Multiple sources:** add, edit and switch between Xtream logins and M3U playlists (with XMLTV guide); favourites and progress are kept per source
 - **Built for the remote:** everything works with the D-pad; long-press OK for favourites or hiding categories

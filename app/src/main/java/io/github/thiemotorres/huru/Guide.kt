@@ -2,6 +2,7 @@ package io.github.thiemotorres.huru
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.focusGroup
@@ -32,6 +33,38 @@ import java.util.Locale
 const val GUIDE_WINDOW = 2 * 60 * 60 * 1000L
 private const val HALF_HOUR = 30 * 60 * 1000L
 private val NAME_WIDTH = 240.dp
+
+/** A programme to be reminded of (Menu in the live player); stored per source as [encode]d strings. */
+data class Reminder(val channelId: Int, val start: Long, val title: String) {
+    fun encode() = "$channelId|$start|$title"
+}
+
+fun decodeReminder(s: String): Reminder? = s.split('|', limit = 3).takeIf { it.size == 3 }?.let { (id, start, title) ->
+    Reminder(id.toIntOrNull() ?: return null, start.toLongOrNull() ?: return null, title)
+}
+
+fun Programme.reminder(channel: Channel) = Reminder(channel.id, start, title)
+
+/** Banner for a programme about to start (top of the live screens). */
+@Composable
+fun ReminderBanner(r: Reminder, channel: Channel, modifier: Modifier = Modifier) {
+    Row(
+        modifier
+            .padding(top = 32.dp)
+            .clip(RoundedCornerShape(8.dp))
+            .background(Color.Black.copy(alpha = 0.85f))
+            .border(2.dp, Accent, RoundedCornerShape(8.dp))
+            .padding(horizontal = 24.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
+        Logo(channel)
+        Column {
+            Text(stringResource(R.string.reminder_banner, hhmm.format(Date(r.start)), r.title, channel.label), color = Color.White)
+            Text(stringResource(R.string.reminder_actions), color = Color.White.copy(alpha = 0.6f), style = MaterialTheme.typography.bodySmall)
+        }
+    }
+}
 
 /** Current time, updated every minute. */
 @Composable

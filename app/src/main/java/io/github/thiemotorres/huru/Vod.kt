@@ -494,7 +494,8 @@ fun VodPlayer(playback: Playback, store: ProgressStore?, onEnded: () -> Unit, on
     LaunchedEffect(overlayTick) { overlay = true; delay(4_000); overlay = false }
 
     val focus = remember { FocusRequester() }
-    LaunchedEffect(Unit) { focus.requestFocus() }
+    // Also after the menu: its focus trap cancels a request made while it is still on screen.
+    LaunchedEffect(menu) { if (!menu) runCatching { focus.requestFocus() } }
     BackHandler(onBack = onExit)
 
     fun seekBy(ms: Long) {
@@ -556,7 +557,7 @@ fun VodPlayer(playback: Playback, store: ProgressStore?, onEnded: () -> Unit, on
                 )
             }
         }
-        if (menu) TrackMenu(player, { menu = false; focus.requestFocus() }, Modifier.align(Alignment.CenterEnd))
+        if (menu) TrackMenu(player, { menu = false }, Modifier.align(Alignment.CenterEnd))
     }
 }
 

@@ -139,7 +139,7 @@ class Mockups {
     @Test fun player() = shot {
         Box(Modifier.fillMaxSize().background(Color.Black)) {
             Image(bitmap("still").asImageBitmap(), null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
-            Box(Modifier.align(Alignment.BottomCenter)) { InfoBar(channels[4], schedules[4], error = null, now = now) }
+            Box(Modifier.align(Alignment.BottomCenter)) { InfoBar(channels[4], schedules[4], error = null, now = now, previous = channels[2], reminded = true) }
         }
     }
 
