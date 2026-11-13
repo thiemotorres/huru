@@ -105,4 +105,5 @@
     <string name="reminder_banner">🔔 %1$s  %2$s auf %3$s</string>
     <string name="reminder_actions">OK umschalten · Zurück schließen</string>
     <string name="previous_hint">▶ Zurück zu %1$s</string>
+    <string name="upcoming_title">%1$s · Demnächst</string>
 </resources>

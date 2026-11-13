@@ -21,6 +21,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.*
 import kotlinx.coroutines.android.awaitFrame
@@ -184,12 +185,72 @@ fun GuideRow(
     }
 }
 
+/** Right-hand overlay panel: traps focus until Back closes it. */
+@OptIn(ExperimentalComposeUiApi::class) // focusProperties exit
+fun Modifier.sidePanel(width: Dp, onClose: () -> Unit) = this
+    .fillMaxHeight().width(width)
+    .background(Color.Black.copy(alpha = 0.9f))
+    .padding(32.dp)
+    // Compose turns Back into a focus exit, which the trap below cancels – so close here.
+    .onPreviewKeyEvent { e -> if (e.key == Key.Back && e.type == KeyEventType.KeyDown) { onClose(); true } else false }
+    .focusProperties { exit = { FocusRequester.Cancel } }
+    .focusGroup()
+
+/**
+ * Coming programmes of a channel (Menu on a channel row): OK sets or clears a reminder, the running one plays.
+ */
+@Composable
+fun UpcomingPanel(
+    x: Provider,
+    channel: Channel,
+    reminders: Set<Reminder>,
+    onRemind: (Reminder) -> Unit,
+    onPlay: () -> Unit,
+    onClose: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    var items by remember { mutableStateOf<List<Programme>?>(null) }
+    LaunchedEffect(channel) { items = runCatching { x.shortEpg(channel, limit = 20) }.getOrDefault(emptyList()) }
+    val focus = remember { FocusRequester() }
+    // While loading the panel itself holds focus, so the D-pad cannot wander in the list underneath.
+    LaunchedEffect(items) { awaitFrame(); runCatching { focus.requestFocus() } }
+    val list = items
+    val runningLabel = stringResource(R.string.archive_running)
+    LazyColumn(
+        modifier
+            .sidePanel(560.dp, onClose)
+            .then(if (list.isNullOrEmpty()) Modifier.focusRequester(focus).focusable() else Modifier),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        item { Text(stringResource(R.string.upcoming_title, channel.label), style = MaterialTheme.typography.titleLarge, color = Color.White) }
+        when {
+            list == null -> item { Text(stringResource(R.string.loading), color = Color.White.copy(alpha = 0.6f)) }
+            list.isEmpty() -> item { Text(stringResource(R.string.no_programme), color = Color.White.copy(alpha = 0.6f)) }
+            else -> {
+                // Start on the first programme that can get a reminder.
+                val first = if (list.size > 1 && list[0].start <= System.currentTimeMillis()) 1 else 0
+                itemsIndexed(list) { i, p ->
+                    val running = p.start <= System.currentTimeMillis()
+                    val r = p.reminder(channel)
+                    ListItem(
+                        selected = false,
+                        onClick = { if (running) onPlay() else onRemind(r) },
+                        headlineContent = { Text(p.title, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                        supportingContent = { Text("${hhmm.format(Date(p.start))}–${hhmm.format(Date(p.end))}" + if (running) "  ·  $runningLabel" else "") },
+                        trailingContent = if (r in reminders) { { Text("🔔") } } else null,
+                        modifier = if (i == first) Modifier.focusRequester(focus) else Modifier,
+                    )
+                }
+            }
+        }
+    }
+}
+
 /**
  * Catch-up list of a channel (Right on a ⟲ channel). Traps focus until closed; [active] false while a recording plays
  * on top, then focus comes back to the last picked programme.
  */
 @Composable
-@OptIn(ExperimentalComposeUiApi::class) // focusProperties exit
 fun ArchivePanel(x: Provider, channel: Channel, active: Boolean, onPlay: (Programme) -> Unit, onClose: () -> Unit, modifier: Modifier = Modifier) {
     var items by remember { mutableStateOf<List<Programme>?>(null) }
     LaunchedEffect(channel) { items = runCatching { x.archive(channel) }.getOrDefault(emptyList()) }
@@ -206,13 +267,7 @@ fun ArchivePanel(x: Provider, channel: Channel, active: Boolean, onPlay: (Progra
     }
     LazyColumn(
         modifier
-            .fillMaxHeight().width(560.dp)
-            .background(Color.Black.copy(alpha = 0.9f))
-            .padding(32.dp)
-            // Compose turns Back into a focus exit, which the trap below cancels – so close here.
-            .onPreviewKeyEvent { e -> if (e.key == Key.Back && e.type == KeyEventType.KeyDown) { onClose(); true } else false }
-            .focusProperties { exit = { FocusRequester.Cancel } }
-            .focusGroup()
+            .sidePanel(560.dp, onClose)
             // Nothing to focus while loading or empty: the panel itself takes focus so D-pad stays here.
             .then(if (list.isNullOrEmpty()) Modifier.focusRequester(focus).focusable() else Modifier),
         verticalArrangement = Arrangement.spacedBy(4.dp),

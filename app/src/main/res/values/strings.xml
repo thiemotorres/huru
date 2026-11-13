@@ -106,4 +106,5 @@
     <string name="reminder_banner">🔔 %1$s  %2$s on %3$s</string>
     <string name="reminder_actions">OK switch over · Back dismiss</string>
     <string name="previous_hint">▶ Back to %1$s</string>
+    <string name="upcoming_title">%1$s · Coming up</string>
 </resources>

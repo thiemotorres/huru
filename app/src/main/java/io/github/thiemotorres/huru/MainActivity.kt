@@ -295,6 +295,7 @@ fun BrowseScreen(
     var gate by remember { mutableStateOf<(() -> Unit)?>(null) } // PIN prompt, runs the action on success
     var focusCat by remember { mutableStateOf<String?>(null) } // category to refocus after menu/PIN
     var archiveOf by remember { mutableStateOf<Channel?>(null) } // catch-up list open for this channel
+    var upcomingOf by remember { mutableStateOf<Channel?>(null) } // coming programmes open for this channel
     var replay by remember { mutableStateOf<Playback?>(null) } // catch-up recording playing
     var liveAfter by remember { mutableStateOf<Channel?>(null) } // start-over: go live when the recording runs out
     var backToLive by remember { mutableStateOf(false) } // start-over came from the live player: Back returns there
@@ -494,8 +495,13 @@ fun BrowseScreen(
                             },
                             modifier = (if (i == returnTo) Modifier.focusRequester(channelFocus) else Modifier)
                                 .onPreviewKeyEvent { e ->
-                                    // Right on a catch-up channel opens its recordings.
-                                    if (ch.archiveDays > 0 && e.key == Key.DirectionRight && e.type == KeyEventType.KeyDown) { archiveOf = ch; true } else false
+                                    // Right on a catch-up channel opens its recordings, Menu the coming programmes.
+                                    when {
+                                        e.type != KeyEventType.KeyDown -> false
+                                        ch.archiveDays > 0 && e.key == Key.DirectionRight -> { archiveOf = ch; true }
+                                        e.key == Key.Menu -> { upcomingOf = ch; true }
+                                        else -> false
+                                    }
                                 },
                         )
                     }
@@ -530,6 +536,15 @@ fun BrowseScreen(
                     liveAfter = ch.takeIf { p.end > System.currentTimeMillis() }
                 },
                 onClose = { archiveOf = null; returnTo = channels.indexOf(ch).takeIf { it >= 0 }; refocus++ },
+                modifier = Modifier.align(Alignment.CenterEnd),
+            )
+        }
+        upcomingOf?.let { ch ->
+            UpcomingPanel(
+                x, ch, reminders,
+                onRemind = { saveReminders(if (it in reminders) reminders - it else reminders + it) },
+                onPlay = { upcomingOf = null; returnTo = null; playing = channels.indexOf(ch).takeIf { it >= 0 } },
+                onClose = { upcomingOf = null; returnTo = channels.indexOf(ch).takeIf { it >= 0 }; refocus++ },
                 modifier = Modifier.align(Alignment.CenterEnd),
             )
         }

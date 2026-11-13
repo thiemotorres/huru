@@ -339,7 +339,6 @@ fun VideoSurface(player: ExoPlayer, onSleep: () -> Unit) {
 
 /** Audio and subtitle choice (Menu key), shared by the live and VOD player. Traps focus until closed. */
 @Composable
-@OptIn(ExperimentalComposeUiApi::class) // focusProperties exit
 fun TrackMenu(
     player: ExoPlayer,
     onClose: () -> Unit,
@@ -393,14 +392,7 @@ fun TrackMenu(
     fun Heading(text: String) = Text(text, style = MaterialTheme.typography.titleLarge, color = Color.White, modifier = Modifier.padding(top = 16.dp))
 
     LazyColumn(
-        modifier
-            .fillMaxHeight().width(420.dp)
-            .background(Color.Black.copy(alpha = 0.85f))
-            .padding(32.dp)
-            // Compose turns Back into a focus exit, which the trap below cancels – so close here.
-            .onPreviewKeyEvent { e -> if (e.key == Key.Back && e.type == KeyEventType.KeyDown) { onClose(); true } else false }
-            .focusProperties { exit = { FocusRequester.Cancel } }
-            .focusGroup(),
+        modifier.sidePanel(420.dp, onClose),
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         // On top and focused first: one press to set it.
