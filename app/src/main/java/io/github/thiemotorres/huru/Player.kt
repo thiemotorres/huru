@@ -403,15 +403,22 @@ fun TrackMenu(
             .focusGroup(),
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        item { Text(stringResource(R.string.audio), style = MaterialTheme.typography.titleLarge, color = Color.White) }
+        // On top and focused first: one press to set it.
+        if (remind != null) {
+            item { Text(stringResource(R.string.reminder), style = MaterialTheme.typography.titleLarge, color = Color.White) }
+            item { Option("${hhmm.format(Date(remind.start))}  ${remind.title}", reminded, onRemind, Modifier.focusRequester(first)) }
+            item { Heading(stringResource(R.string.audio)) }
+        } else {
+            item { Text(stringResource(R.string.audio), style = MaterialTheme.typography.titleLarge, color = Color.White) }
+        }
         itemsIndexed(audio) { n, (g, i) ->
-            Option(audioLabels[n], g.isTrackSelected(i), { select(g, i, C.TRACK_TYPE_AUDIO) }, if (n == 0) Modifier.focusRequester(first) else Modifier)
+            Option(audioLabels[n], g.isTrackSelected(i), { select(g, i, C.TRACK_TYPE_AUDIO) }, if (n == 0 && remind == null) Modifier.focusRequester(first) else Modifier)
         }
         item { Heading(stringResource(R.string.subtitles)) }
         item {
             Option(
                 stringResource(R.string.subtitles_off), text.none { (g, i) -> g.isTrackSelected(i) }, { select(null, 0, C.TRACK_TYPE_TEXT) },
-                if (audio.isEmpty()) Modifier.focusRequester(first) else Modifier,
+                if (audio.isEmpty() && remind == null) Modifier.focusRequester(first) else Modifier,
             )
         }
         itemsIndexed(text) { n, (g, i) -> Option(textLabels[n], g.isTrackSelected(i), { select(g, i, C.TRACK_TYPE_TEXT) }) }
@@ -435,10 +442,6 @@ fun TrackMenu(
                     Viewing.sleepAt = if (minutes == 0) null else System.currentTimeMillis() + minutes * 60_000L
                 },
             )
-        }
-        if (remind != null) {
-            item { Heading(stringResource(R.string.reminder)) }
-            item { Option("${hhmm.format(Date(remind.start))}  ${remind.title}", reminded, onRemind) }
         }
     }
 }
