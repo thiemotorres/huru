@@ -224,7 +224,7 @@ fun UpcomingPanel(
     ) {
         item { Text(stringResource(R.string.upcoming_title, channel.label), style = MaterialTheme.typography.titleLarge, color = Color.White) }
         when {
-            list == null -> item { Text(stringResource(R.string.loading), color = Color.White.copy(alpha = 0.6f)) }
+            list == null -> item { ListSkeleton() }
             list.isEmpty() -> item { Text(stringResource(R.string.no_programme), color = Color.White.copy(alpha = 0.6f)) }
             else -> {
                 // Start on the first programme that can get a reminder.
@@ -274,7 +274,7 @@ fun ArchivePanel(x: Provider, channel: Channel, active: Boolean, onPlay: (Progra
     ) {
         item { Text(stringResource(R.string.archive_title, channel.label), style = MaterialTheme.typography.titleLarge, color = Color.White) }
         when {
-            list == null -> item { Text(stringResource(R.string.loading), color = Color.White.copy(alpha = 0.6f)) }
+            list == null -> item { ListSkeleton() }
             list.isEmpty() -> item { Text(stringResource(R.string.archive_empty), color = Color.White.copy(alpha = 0.6f)) }
             else -> itemsIndexed(list) { i, p ->
                 ListItem(

@@ -13,10 +13,6 @@
     <string name="connection_failed">Connection failed</string>
 
     <string name="loading_failed">Loading failed</string>
-    <string name="loading_channels">Loading channels…</string>
-    <string name="loading_movies">Loading movies…</string>
-    <string name="loading_series">Loading series…</string>
-    <string name="loading_episodes">Loading episodes…</string>
     <string name="loading">Loading…</string>
 
     <string name="favorites">★ Favorites</string>

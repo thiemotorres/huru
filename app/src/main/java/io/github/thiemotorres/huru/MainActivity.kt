@@ -357,9 +357,10 @@ fun BrowseScreen(
 
     val loaded = categories
     if (loaded == null) {
+        if (error == null) { LiveSkeleton(header); return }
         Column(Modifier.fillMaxSize(), Arrangement.Center, Alignment.CenterHorizontally) {
-            Text(error ?: stringResource(R.string.loading_channels))
-            if (error != null) Button(onClick = onManageSources, Modifier.padding(top = 16.dp)) { Text(stringResource(R.string.manage_sources)) }
+            Text(error!!)
+            Button(onClick = onManageSources, Modifier.padding(top = 16.dp)) { Text(stringResource(R.string.manage_sources)) }
         }
         return
     }

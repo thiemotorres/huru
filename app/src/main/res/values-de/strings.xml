@@ -12,10 +12,6 @@
     <string name="connection_failed">Verbindung fehlgeschlagen</string>
 
     <string name="loading_failed">Laden fehlgeschlagen</string>
-    <string name="loading_channels">Lade Sender…</string>
-    <string name="loading_movies">Lade Filme…</string>
-    <string name="loading_series">Lade Serien…</string>
-    <string name="loading_episodes">Lade Folgen…</string>
     <string name="loading">Lädt…</string>
 
     <string name="favorites">★ Favoriten</string>

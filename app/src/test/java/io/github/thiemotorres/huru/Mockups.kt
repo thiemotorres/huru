@@ -215,5 +215,9 @@ class Mockups {
 
     @Test fun setup() = shot { SourceForm(initial = null, onSave = {}, onCancel = null) }
 
+    @Test fun loading_live() = shot { LiveSkeleton(header = { ModeSwitch(0, onMode = {}, focus = false) }) }
+
+    @Test fun loading_movies() = shot { GridSkeleton(header = { ModeSwitch(1, onMode = {}, focus = false) }) }
+
     @Test fun splash() = shot { SplashFrame(rise = 1f, fly = 1f, flap = 1f, word = 1f) }
 }

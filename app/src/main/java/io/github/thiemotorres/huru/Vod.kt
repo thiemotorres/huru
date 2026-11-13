@@ -140,11 +140,10 @@ fun VodScreen(x: Xtream, series: Boolean, header: @Composable () -> Unit, autoFo
 
     val loaded = categories
     if (loaded == null) {
+        if (error == null) { GridSkeleton(header); return }
         Column(Modifier.fillMaxSize().padding(24.dp)) {
             header()
-            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text(error ?: stringResource(if (series) R.string.loading_series else R.string.loading_movies))
-            }
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text(error!!) }
         }
         return
     }
@@ -397,7 +396,7 @@ private fun SeriesDetail(
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(16.dp)) {
             when {
                 error != null -> Text(error!!)
-                episodes == null -> Text(stringResource(R.string.loading_episodes))
+                episodes == null -> ListSkeleton()
                 episodes!!.isEmpty() -> Text(stringResource(R.string.no_episodes))
             }
             if (seasons.size > 1) {
