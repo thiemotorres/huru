@@ -10,19 +10,46 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInWindow
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 
-/** Pulsing placeholder alpha, shared by all blocks of one skeleton so they breathe together. */
+/** Shimmer position: one sweep across the screen per cycle, shared by all blocks of a skeleton. */
 @Composable
 private fun rememberPulse(): State<Float> = rememberInfiniteTransition(label = "skeleton").animateFloat(
-    0.04f, 0.10f, infiniteRepeatable(tween(900, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "pulse",
+    0f, 1f, infiniteRepeatable(tween(1100, easing = LinearEasing)), label = "shimmer",
 )
 
+private val SHIMMER_BAND = 280.dp
+
 @Composable
-private fun Block(pulse: State<Float>, modifier: Modifier) =
-    // Alpha read in the draw phase only: the pulse never recomposes the layout.
-    Box(modifier.clip(RoundedCornerShape(6.dp)).drawBehind { drawRect(Color.White.copy(alpha = pulse.value)) })
+private fun Block(pulse: State<Float>, modifier: Modifier) {
+    // Position in the window, so the band runs across all blocks as one light instead of per block.
+    var left by remember { mutableFloatStateOf(0f) }
+    val density = LocalDensity.current
+    val screen = with(density) { LocalConfiguration.current.screenWidthDp.dp.toPx() }
+    val band = with(density) { SHIMMER_BAND.toPx() }
+    Box(
+        modifier
+            .onGloballyPositioned { left = it.positionInWindow().x }
+            .clip(RoundedCornerShape(6.dp))
+            // Read in the draw phase only: the animation never recomposes the layout.
+            .drawBehind {
+                drawRect(Color.White.copy(alpha = 0.06f))
+                val x = pulse.value * (screen + 2 * band) - band - left
+                drawRect(
+                    Brush.horizontalGradient(
+                        listOf(Color.Transparent, Color.White.copy(alpha = 0.09f), Color.Transparent),
+                        startX = x - band / 2, endX = x + band / 2,
+                    ),
+                )
+            },
+    )
+}
 
 // Fixed widths so the skeleton looks like text, not a wall of equal bars.
 private val CATEGORY_WIDTHS = listOf(0.5f, 0.8f, 0.65f, 0.9f, 0.55f, 0.75f, 0.6f, 0.85f)

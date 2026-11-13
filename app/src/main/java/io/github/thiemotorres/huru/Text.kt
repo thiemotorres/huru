@@ -2,9 +2,11 @@ package io.github.thiemotorres.huru
 
 import java.text.Normalizer
 
+private val MARKS = Regex("\\p{M}+")
+
 /** Search key: lowercase, accents removed ("Ação" → "acao"). */
 fun searchKey(s: String): String =
-    Normalizer.normalize(s, Normalizer.Form.NFD).replace(Regex("\\p{M}+"), "").lowercase()
+    Normalizer.normalize(s, Normalizer.Form.NFD).replace(MARKS, "").lowercase()
 
 private val BRACKET_TAG = Regex("""\[([^\]]*)]""")
 private val EPISODE_CODE = Regex("""\bS\d{1,2}\s*E\d{1,3}\b""", RegexOption.IGNORE_CASE)

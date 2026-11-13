@@ -309,7 +309,10 @@ fun BrowseScreen(
     var due by remember { mutableStateOf<Reminder?>(null) } // banner shown for this one
     var query by remember { mutableStateOf("") }
     var typing by remember { mutableStateOf(false) } // search keyboard open: stray focus must not switch the category
-    val searchIndex = remember(all) { all.map { it to searchKey(it.name) } }
+    // Built off the main thread: thousands of channels would stall the first frame of the list.
+    val searchIndex by produceState(emptyList<Pair<Channel, String>>(), all) {
+        value = withContext(Dispatchers.Default) { all.map { it to searchKey(it.name) } }
+    }
     // Locked categories show no channels, also not via favourites or recently watched.
     fun channelsOf(cat: String?, closed: Set<String>) =
         when (cat) {
@@ -329,9 +332,10 @@ fun BrowseScreen(
         runCatching {
             // Cache first, then server.
             x.loadLive(context.cacheDir) { cats, chans ->
+                val groups = withContext(Dispatchers.Default) { chans.groupBy { it.categoryId } }
                 all = chans
-                byCategory = chans.groupBy { it.categoryId }
-                categories = cats.filter { byCategory[it.id] != null }
+                byCategory = groups
+                categories = cats.filter { groups[it.id] != null }
                 if (started) return@loadLive
                 started = true
                 if (autoplay) {

@@ -44,7 +44,9 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.tv.material3.*
 import coil.compose.AsyncImage
 import kotlinx.coroutines.android.awaitFrame
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 
 /** What is playing. resumeKey stores the position; following plays automatically afterwards (next episodes). */
 data class Playback(
@@ -130,9 +132,13 @@ fun VodScreen(x: Xtream, series: Boolean, header: @Composable () -> Unit, autoFo
             else listOf("get_vod_categories", "get_vod_streams")
         runCatching {
             x.loadLists(context.cacheDir, actions) { (c, items) ->
-                val parsed = if (series) x.parseSeries(items) else x.parseMovies(items)
-                byCategory = parsed.groupBy { it.categoryId }
-                categories = x.parseCategories(c).filter { byCategory[it.id] != null }
+                // Off the main thread: tens of thousands of entries would freeze the UI (and the skeleton).
+                val (groups, cats) = withContext(Dispatchers.Default) {
+                    val grouped = (if (series) x.parseSeries(items) else x.parseMovies(items)).groupBy { it.categoryId }
+                    grouped to x.parseCategories(c).filter { grouped[it.id] != null }
+                }
+                byCategory = groups
+                categories = cats
                 if (selected == null) selected = if (store.list(prefix).isNotEmpty()) CONTINUE else categories?.firstOrNull()?.id
             }
         }.onFailure { if (categories == null) error = it.message ?: loadingFailed }
@@ -157,7 +163,10 @@ fun VodScreen(x: Xtream, series: Boolean, header: @Composable () -> Unit, autoFo
         if (inProgress.isNotEmpty()) add(Category(CONTINUE, continueLabel))
         addAll(loaded)
     }
-    val all = remember(byCategory, closed) { byCategory.filterKeys { it !in closed }.values.flatten().map { it to searchKey(it.name) } }
+    // Built off the main thread: tens of thousands of titles would stall the first frame of the grid.
+    val all by produceState(emptyList<Pair<VodItem, String>>(), byCategory, closed) {
+        value = withContext(Dispatchers.Default) { byCategory.filterKeys { it !in closed }.values.flatten().map { it to searchKey(it.name) } }
+    }
     val items = when (selected) {
         SEARCH -> remember(query, all) {
             val q = searchKey(query.trim())
