@@ -37,6 +37,7 @@ adb install -r app/build/outputs/apk/release/app-release.apk
 - Mockup screenshots: `Mockups.kt` (Paparazzi, fictional data) → `./gradlew recordPaparazziDebug` → copy to `docs/screenshots/`.
 - Fictional artwork for mocks: `python3 tools/mock_assets.py`. Ko-fi QR drawable: `python3 tools/kofi_qr.py` (needs `segno`).
 - Amazon graphics: `python3 tools/store_assets.py` → `store/amazon/`; texts and checklist in `store/amazon/listing.md`.
+- **Every release:** update the store texts in `store/amazon/listing.md` (description, feature bullets, English and German) to match the new features, and write the "What's new" notes in both languages.
 
 ## Demo server
 
