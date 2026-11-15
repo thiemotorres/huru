@@ -50,6 +50,33 @@ Important: Huru is only a player. It does not provide, sell or recommend any cha
 
 **Keywords:** iptv, xtream, player, live tv, epg, tv guide
 
+**German (Deutsch):**
+
+*Short description:*
+Ein aufgeräumter, werbefreier IPTV-Player für dein eigenes Xtream-Codes-Abo oder deine M3U-Playlist. Huru stellt keine Sender oder Inhalte bereit.
+
+*Long description:*
+Huru ist ein ruhiger, schneller und werbefreier Player für IPTV-Dienste mit Xtream-Codes-API oder M3U-Playlist. Melde dich mit den Zugangsdaten deines eigenen Anbieters an – oder probiere die eingebaute Demo mit freien, legalen Testinhalten – und schau Live-TV, Filme und Serien, von Grund auf für die Fire-TV-Fernbedienung gebaut.
+
+• Live-TV mit Programmführer direkt in der Senderliste
+• Schnelles Umschalten mit Hoch/Runter und Info-Einblendung
+• Startet direkt mit dem zuletzt gesehenen Sender
+• Favoriten und ausblendbare Kategorien
+• Filme und Serien mit Suche, „Weiterschauen“ und automatischer nächster Folge
+• Mehrere Quellen: Zugänge und M3U-Playlisten hinzufügen und wechseln
+• Keine Werbung, kein Tracking, kein Konto
+
+Wichtig: Huru ist nur ein Player. Huru stellt keine Sender, Playlisten, Filme oder Serien bereit, verkauft oder empfiehlt sie nicht. Du brauchst ein eigenes Abo bei einem Anbieter, der seine Inhalte verbreiten darf.
+
+*Product feature bullets:*
+- Programmführer (EPG) direkt in der Senderliste
+- Schnelles Umschalten, Start mit dem letzten Sender
+- Filme & Serien mit Weiterschauen, Suche und nächster Folge
+- Mehrere Quellen, Favoriten und ausblendbare Kategorien
+- Keine Werbung, kein Tracking – kostenlose Demo mit einem Klick
+
+*Keywords:* iptv, xtream, player, live tv, epg, tv guide, fernsehen, programmführer
+
 ## 4. Images & multimedia
 
 | Field | File |
