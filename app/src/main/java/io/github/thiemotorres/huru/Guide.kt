@@ -107,10 +107,23 @@ fun GuideRow(
     onLongClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    // A long press that moves focus here (removing from "Recently watched") would otherwise turn the release
+    // of OK into a click on this row: Surface clicks on key-up even without having seen the key-down.
+    var pressed by remember { mutableStateOf(false) }
     Surface(
         onClick = onClick,
         onLongClick = onLongClick,
-        modifier = modifier.fillMaxWidth().height(64.dp),
+        modifier = modifier
+            .onPreviewKeyEvent { e ->
+                if (e.key != Key.DirectionCenter && e.key != Key.Enter && e.key != Key.NumPadEnter) return@onPreviewKeyEvent false
+                when (e.type) {
+                    // Only the first down counts: a held key keeps repeating on the row focus moved to.
+                    KeyEventType.KeyDown -> { if (e.nativeKeyEvent.repeatCount == 0) pressed = true; false }
+                    KeyEventType.KeyUp -> (!pressed).also { pressed = false }
+                    else -> false
+                }
+            }
+            .fillMaxWidth().height(64.dp),
         shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(8.dp)),
         colors = ClickableSurfaceDefaults.colors(
             containerColor = Color.Transparent,
