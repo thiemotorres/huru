@@ -1,0 +1,1 @@
+<bash-input> adb connect 192.168.92.32:5555 && adb install -r app/build/outputs/apk/debug/app-debug.apk</bash-input>
