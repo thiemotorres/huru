@@ -1,0 +1,11 @@
+<pasted_content id="bddf">
+root@OPNsense:~ # cat > /usr/local/etc/unbound.opnsense.d/huru-demo.conf << 'EOF'
+? server:
+?   local-zone: "huru-demo.feto.dev." transparent
+? EOF
+? 
+? 
+?
+</pasted_content id="bddf">
+
+ kommt nicht raus
