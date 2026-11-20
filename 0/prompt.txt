@@ -1,0 +1,1 @@
+<bash-input>dig +short huru-demo.feto.dev</bash-input>
