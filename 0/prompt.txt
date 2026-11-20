@@ -1,0 +1,2 @@
+<bash-stdout>To github.com:thiemotorres/huru.git
+ * [new tag]         v0.7.0 -&gt; v0.7.0</bash-stdout><bash-stderr></bash-stderr>
