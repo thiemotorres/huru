@@ -1,0 +1,4 @@
+<bash-stdout>feto.dev: 104.21.17.243 172.67.178.225 
+huru-demo.feto.dev: 172.67.178.225 104.21.17.243 
+grafana.feto.dev: 192.168.92.42 
+argocd.feto.dev: 192.168.92.42</bash-stdout><bash-stderr></bash-stderr>
