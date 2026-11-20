@@ -1,0 +1,3 @@
+<bash-stdout>already connected to 192.168.92.32:5555
+Performing Streamed Install
+Success</bash-stdout><bash-stderr></bash-stderr>
