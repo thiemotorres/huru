@@ -1,0 +1,1 @@
+Ein Detail: Nach dem Speichern oder Löschen springt der Fokus auf das ⚙-Symbol statt in die Liste. Das stört nicht, ließe sich aber noch verfeinern. -> eben angehen
