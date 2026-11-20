@@ -1,0 +1,1 @@
+halte bitte in agents.md fest, dass die store texte aktualisiert werden müssen mit jedem release
