@@ -1,0 +1,1 @@
+<bash-input> cd demo-server && npx wrangler deploy</bash-input>
