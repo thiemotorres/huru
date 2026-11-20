@@ -1,0 +1,1 @@
+eine sache vor 0.1.0  -> mehrere quellen inkl. verwaltung; beim initialen setup: option demo zugang zu nutzen statt eigenen xtream anzugeben
