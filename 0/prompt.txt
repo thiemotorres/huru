@@ -1,0 +1,2 @@
+<bash-stdout>Performing Streamed Install
+Success</bash-stdout><bash-stderr></bash-stderr>
