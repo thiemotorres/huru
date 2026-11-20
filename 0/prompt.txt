@@ -1,0 +1,88 @@
+This session is being continued from a previous conversation that ran out of context. The summary below covers the earlier portion of the conversation.
+
+
+Summary:
+## Session summary (Huru – IPTV player for Fire TV, repo `/Users/feto/dev/private/iptv`)
+
+The conversation is in German; the repo is English-only (code, comments, UI strings, docs, commits). UI text is localized in `app/src/main/res/values/strings.xml` and `values-de/strings.xml`.
+
+### Rules from project instructions (AGENTS.md / CLAUDE.md) and the user
+- **"Ask before sending key events or installing"** on the Fire TV, because the TV is in daily use. Screenshots (`adb exec-out screencap -p`) are fine. Navigate step by step instead of long blind key sequences.
+- **"Never commit keystores or passwords."** **"Never put credentials, provider URLs or IPs into the repository."**
+- Huru is a player only: no content sources, provider lists or stream links. Use fictional mock data in tests.
+- Never call the project "open source"; the license is PolyForm Noncommercial (source-available).
+- Commit only when the user asks. Commit messages end with `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`.
+- Treat the user's email and personal data as private; never send them to external services.
+- After UI changes, re-record mockups with `./gradlew recordPaparazziDebug` and copy changed images to `docs/screenshots/`.
+- Build:
+  - `export JAVA_HOME=/opt/homebrew/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home`
+  - `./gradlew testDebugUnitTest assembleRelease -PversionCode=N`
+  - The last installed versionCode is 38; the next build needs 39 or higher to avoid a downgrade error.
+- Device: Fire TV Stick 4K Max at `192.168.92.32:5555`.
+  - `Log.d` is filtered on Fire OS; use `Log.w` for debugging.
+- Shell notes:
+  - `grep` is aliased to `rtk grep`, which uses ripgrep regex: `\|` fails, use `-E` or `rg`.
+  - zsh globbing breaks `--include=*.kt`.
+- Scratchpad: `/private/tmp/claude-501/-Users-feto-dev-private-iptv/11f55e6d-2c3c-40c7-ab60-a39b03b42143/scratchpad`. It contains `ui.sh`, which dumps the visible UI texts via `uiautomator`. Use it to check state; screenshots are unreliable during video (see below).
+
+### Earlier work (already pushed before this part of the session)
+- **Commits:**
+  - `1b38c71`: reconnect, number keys, account expiry.
+  - `d5522cc`: picture mode and sleep timer.
+  - `c0898c8`: shared `Reconnect`.
+  - `eeca840`: M3U playlists.
+- **Tag `v0.5.0`** is released. A possible `v0.6.0` (with M3U) has not been made yet.
+
+### This part of the session
+1. The user asked for feature ideas. The assistant proposed:
+   1. Previous channel.
+   2. Reminders.
+   3. M3U EPG disk cache.
+   4. Live pause via catch-up.
+   5. Full-screen EPG grid.
+   6. Fire TV "Watch Next" row.
+   7. Global search.
+
+   It recommended 1, 2 and 4. The user said "klingt gut".
+2. **Implemented:**
+   - **Previous channel** (`Player.kt`): `shown` and `previous` state are updated in `LaunchedEffect(channel)`. `Key.DirectionRight` switches to `previous`. `InfoBar` gets `previous: Channel?` and shows the hint string `previous_hint` ("▶ Back to %1$s" / "▶ Zurück zu %1$s"). Hints are shown in one row together with `start_over_hint`.
+   - **Reminders:**
+     - `Guide.kt`: `data class Reminder(channelId, start, title)` with `encode()` ("id|start|title"), `decodeReminder(s)`, `Programme.reminder(channel)`, and the composable `ReminderBanner(r, channel, modifier)`, which uses `Logo` and an accent border.
+     - `TrackMenu` gets optional `remind: Reminder?`, `reminded`, `onRemind`, shown as an "Erinnerung" section at the bottom of the menu.
+     - `Player` gets the params `reminders: Set<Reminder>` and `onRemind: (Reminder) -> Unit`. `InfoBar` gets `reminded` and shows 🔔 after the next programme.
+     - `MainActivity.kt` `BrowseScreen`:
+       - State: `playerKey`, `remindPrefs = sourcePrefs("reminders")` (string set "all", items older than 15 min are dropped on load), `saveReminders`, `due`.
+       - A `LaunchedEffect(reminders, playing)` loop runs every 15 s. It drops a reminder if you are already watching that channel near its start. It sets `due` from 2 min before to 15 min after the start.
+       - `switchTo(r)` sets the category and the playing index, then `playerKey++`. The Player is wrapped in `key(playerKey)`.
+       - The root `Box` has `onPreviewKeyEvent`: while `due` is set, OK switches and Back dismisses. The banner sits at TopCenter.
+       - Marked with a `ponytail:` comment: reminders only show while live TV is open; AlarmManager would be the upgrade.
+     - `Sources.kt`: "reminders" was added to `SOURCE_PREFS`.
+     - New strings in both locales: `reminder`, `reminder_banner` ("🔔 %1$s  %2$s on/auf %3$s"), `reminder_actions` ("OK switch over · Back dismiss" / "OK umschalten · Zurück schließen"), `previous_hint`.
+   - **Catch-up pause:** tried and **removed**.
+     - First approach: shift the server start text to the pause minute (`resumeFrom`/`shiftStart`). The server returned non-media content: `ERROR_CODE_PARSING_CONTAINER_UNSUPPORTED`, "None of the available extractors could read the stream".
+     - Second approach: start-over URL plus seek (`Playback.startAt`). Failed with `ERROR_CODE_IO_NETWORK_CONNECTION_FAILED` / `java.net.ProtocolException: unexpected end of stream`, because range requests into a running recording are cut off.
+     - Final state: pause jumps back to the live edge, as before. A comment in the Play/Pause handler explains why catch-up resume is not used. `Playback.startAt` and the shift code were removed.
+   - **Focus bug fix (existed before this round):** after closing the player menu, nothing had focus. The menu's `focusProperties { exit = Cancel }` trap cancelled `focus.requestFocus()` in `onClose`. Now `TrackMenu`'s `onClose = { menu = false }`. Both `Player` and `VodPlayer` use `LaunchedEffect(menu) { if (!menu) runCatching { focus.requestFocus() } }`. Verified on device.
+   - **Test:** `app/src/test/java/io/github/thiemotorres/huru/ReminderTest.kt` (reminder encode/decode round trip). The earlier `ResumeTest` was replaced by it.
+   - **Mockups and docs:** the `Mockups.kt` player shot now passes `previous = channels[2], reminded = true`. `docs/screenshots/player.png` and `settings.png` were updated (the settings image was stale: its About text lacked M3U). The README features list gained the zapping line (Right for the previous channel) and a "Reminders" line. The catch-up pause line was removed again.
+3. **Device testing:**
+   - Verified: previous channel (►), setting a reminder (✓ in the menu), the focus fix, and that Back in the menu closes only the menu.
+   - `screencap` returns stale frames while TextureView video plays, which misled the testing. Compose UI changes still show up.
+   - A worktree build of `eeca840` was used to confirm that this was not a regression; the worktree was removed afterwards.
+   - The provider seemed to rate-limit after many rapid connections.
+   - At the end, `dumpsys input` showed key events not sent by the assistant (about every 14 s), so the user or HDMI-CEC was probably using the remote. Testing stopped.
+   - The reminder banner itself was never observed on device (Animal Planet reminder for 01:30, valid until 01:45).
+4. **Committed and pushed** at the user's request ("ja bitte commiten"): `d44458e` "Previous channel (Right), programme reminders; player keeps focus after the menu". The stick runs versionCode 38, which matches this commit.
+
+### Open threads
+- The reminder banner (switch via OK, dismiss via Back) still needs a device check.
+- The reminder item sits at the bottom of the player menu, nine presses down. The assistant had planned to move it to the top for easier reach; this was not done.
+- CI result for `d44458e` has not been checked yet.
+- A possible `v0.6.0` release with M3U, reminders and the previous-channel feature.
+- Remaining ideas: M3U EPG disk cache for large files, a full-screen EPG grid, Fire TV "Watch Next" (needs a new dependency), global search, and AlarmManager notifications for reminders.
+- The Obsidian project-tracking question from the hook was mentioned once earlier and never answered; do not ask again.
+
+If you need specific details from before compaction (like exact code snippets, error messages, or content you generated), read the full transcript at: /Users/feto/.claude/projects/-Users-feto-dev-private-iptv/11f55e6d-2c3c-40c7-ab60-a39b03b42143.jsonl
+Continue the conversation from where it left off without asking the user any further questions. Resume directly — do not acknowledge the summary, do not recap what was happening, do not preface with "I'll continue" or similar. Pick up the last task as if the break never happened.
+
+The messages after this summary are the most recent messages from before compaction, kept verbatim. The summary was written without seeing them, so something it says has not happened yet may already have happened in them.
