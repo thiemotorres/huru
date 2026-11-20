@@ -1,0 +1,2 @@
+<bash-stdout>104.21.17.243
+172.67.178.225</bash-stdout><bash-stderr></bash-stderr>
