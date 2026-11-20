@@ -1,0 +1,1 @@
+Mir ist ein bug aufgefallen. Wenn ich bei zuletzt angesehen einen Kanal per langem Drücken entferne, sorgt der button up dafür dass der nächste Sender in der Liste abgespielt wird
