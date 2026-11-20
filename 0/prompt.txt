@@ -1,0 +1,82 @@
+This session is being continued from a previous conversation that ran out of context. The summary below covers the earlier portion of the conversation.
+
+
+Summary:
+## Session summary (Huru – IPTV player for Fire TV, repo `/Users/feto/dev/private/iptv`)
+
+The conversation is in German; the repo is English-only (code, comments, UI strings, docs, commits). UI text must be localized in `app/src/main/res/values/strings.xml` and `values-de/strings.xml`.
+
+### Rules from project instructions and the user
+- **Ask before sending key events or installing on the Fire TV.** The TV is in daily use. Screenshots (`adb exec-out screencap -p`) are fine. Navigate step by step, not with long blind key sequences. A blind sequence went wrong once in this session.
+- **Never commit keystores or passwords. Never put credentials, provider URLs or IPs into the repo.**
+- Huru is a player only: no content sources, provider lists or stream links. Use fictional mock data in tests.
+- Never call the project "open source". The license is PolyForm Noncommercial (source-available).
+- Commit only when the user asks; they asked each time. Commit messages end with `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`.
+- Treat the user's email and personal data as private.
+- UI changes: re-record mockups (`./gradlew recordPaparazziDebug`) and copy changed images to `docs/screenshots/`.
+- Build: `export JAVA_HOME=/opt/homebrew/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home`, then `./gradlew testDebugUnitTest assembleRelease`.
+- Device: Fire TV Stick 4K Max at `192.168.92.32:5555`.
+  - Local release builds need `-PversionCode=N` higher than the installed one (last used: 31) to avoid `INSTALL_FAILED_VERSION_DOWNGRADE`.
+  - `Log.d` is filtered on Fire OS; use `Log.w` for debugging.
+- Shell notes: `grep` is aliased to `rtk grep`, which uses ripgrep regex (`\|` and `--include` fail). Inside `bash -c`, `k` is an alias, so name shell functions differently (e.g. `key`).
+
+### Work done and pushed this session
+All commits are pushed to `main`. CI for the last push (run 43306062527) passed.
+
+1. **`1b38c71`** – Live player: quiet reconnect on stream drops, channel number keys, account expiry in settings.
+   - `Xtream.login()` returns the expiry. A top-level `expiryOf(JSONObject)` reads it. Test: `ExpiryTest.kt`.
+   - Settings `SourceRow` shows "gültig bis …", in error colour when expired.
+   - Player number keys: 1.5 s timeout or 4 digits; only searches channels in the current zap list. Helper: `digit(KeyEvent)`.
+2. **`d5522cc`** – Player menu: picture mode (fit/zoom/stretch) and sleep timer.
+   - `object Viewing` holds `picture`, `sleepAt` and `sleepMinutes`. `pictureScale(mode, video, screen)` computes the scale. Test: `PictureTest.kt`.
+   - `VideoSurface(player, onSleep)` uses `BoxWithConstraints`, an `AndroidView` TextureView with `requiredSize(maxWidth*x, maxHeight*y)`, and a `Canvas` that paints letterbox bars black.
+   - Fire OS findings: `graphicsLayer` and `setTransform` have no effect on the TextureView. A shrunken TextureView leaves green "empty video memory" (YUV zero) outside its bounds.
+   - The picture preference is saved under the key "picture" in the "tracks" prefs. Strings `picture*`, `sleep*` and `minutes` were added, and `tracks_hint` was updated.
+3. **Tag `v0.5.0`** – `v0.4.0` already existed. The release workflow succeeded: https://github.com/thiemotorres/huru/releases/tag/v0.5.0 with `huru-0.5.0.apk`. The Amazon build is an artifact; the user uploads it manually.
+4. **`c0898c8`** – Shared `class Reconnect(scope: CoroutineScope)` in `Player.kt`.
+   - `retry(action)` returns false after 3 tries (delays 1/2/4 s; the counter now increments synchronously, a bug found by the test). `reset()` cancels the pending retry.
+   - Used by both the live player and `VodPlayer` (VOD retries with `prepare()`, which resumes at the same position). Test: `ReconnectTest.kt`.
+5. **`eeca840`** – M3U playlists as a second source type. The user chose URL only, gzip supported, and implement directly without opening a GitHub issue.
+   - **Model (`Xtream.kt`):**
+     - `Account` gains `type` (`XTREAM`/`M3U` constants) and `epg`.
+     - `Channel` gains `url` and `epgId`.
+     - New `interface Provider` with `account`, `login()`, `loadLive(cacheDir, show)`, `shortEpg(channel, limit=2)`, `streamUrl`, `liveFallback()`, `archive`, `archiveUrl`.
+     - `fun provider(account)` picks the implementation. `Xtream` implements `Provider`; `liveExt` is now private behind `liveFallback()`.
+     - Generic `cachedLists(cacheDir, account, names, fetch, show)`; `Xtream.loadLists` delegates to it.
+   - **New `M3u.kt`:**
+     - `parseM3u(text)` returns `Playlist(channels, epgUrl)`. Channel ids come from the URL hash, de-duplicated. `group-title` becomes the category; channels without a group go under the source name. Number from `tvg-chno`, otherwise position; `epgId` from `tvg-id`, otherwise `tvg-name`.
+     - `parseXmltv(input, ids, from, to)` uses a SAX parser and takes only the first `<title>`.
+     - Also `xmltvTime(...)`, gzip detection by magic bytes, and `class M3u : Provider`. The guide is loaded once per app start, keeping the next 24 h in memory (marked with a `ponytail:` comment).
+   - **`Sources.kt`:** encode/decode `type` and `epg`.
+   - **`MainActivity.kt`:**
+     - Uses `provider(active)`.
+     - `ModeSwitch(mode, vod: Boolean = true, …)` hides Movies/Series for M3U.
+     - `BrowseScreen(x: Provider)` uses `x.loadLive`.
+     - The VOD screen is shown only for `x as? Xtream`.
+   - **Other files:** `Player(x: Provider)` and `ArchivePanel(x: Provider)`.
+   - **`Settings.kt`:**
+     - Type toggle: both buttons stay `OutlinedButton`, the selected one gets a "✓ " prefix (fixes a focus jump to the name field).
+     - M3U fields: playlist URL and optional EPG URL.
+     - Validation uses `provider(candidate).login()`.
+     - `SourceRow` shows "M3U-Playlist" and skips expiry for M3U.
+   - **Strings:** `source_type_xtream`, `source_type_m3u`, `login_playlist`, `login_epg`; `setup_hint` and the About text now mention M3U.
+   - **Docs:** README, `store/amazon/listing.md` and the AGENTS.md architecture table (`M3u.kt` row) updated; `docs/screenshots/setup.png` re-recorded.
+   - **Test:** `M3uTest.kt` caught an XMLTV title bug, which is fixed.
+
+### Device testing done
+- Expiry date, number keys (`1122` reached Animal Planet), picture modes with Tears of Steel (2.24:1) and Sintel, and sleep-timer display ("noch 30 min") verified. The sleep timer was not run to expiry.
+- M3U was tested with a local playlist served from the Mac (`192.168.92.92:8765`, files in `/private/tmp/claude-501/-Users-feto-dev-private-iptv/11f55e6d-2c3c-40c7-ab60-a39b03b42143/scratchpad/m3u`): list, groups, gzip EPG via `url-tvg`, playback and digit `11` all worked.
+- Afterwards the test source was deleted, the user's source (hd-max) re-activated and the server stopped. The stick was left on the settings screen.
+- The stick still has an older build without the final focus fix for the type toggle (fix is committed and pushed, not installed).
+- Reconnect was never tested on device; a stream drop cannot be forced.
+
+### Remaining ideas and open threads
+- Not chosen yet: live pause/timeshift, programme reminders, Fire TV "Watch Next" row (needs a new dependency), full-screen EPG grid.
+- Large real EPG files (100 MB+) on the stick are untested. Possible upgrade: cache the trimmed guide on disk.
+- Possible upgrade for `Reconnect`: cap retries per minute if a flaky stream loops.
+- The hook asked whether to set up Obsidian project tracking (`.claude-project` marker). The assistant mentioned it once; the user never answered.
+
+If you need specific details from before compaction (like exact code snippets, error messages, or content you generated), read the full transcript at: /Users/feto/.claude/projects/-Users-feto-dev-private-iptv/11f55e6d-2c3c-40c7-ab60-a39b03b42143.jsonl
+Continue the conversation from where it left off without asking the user any further questions. Resume directly — do not acknowledge the summary, do not recap what was happening, do not preface with "I'll continue" or similar. Pick up the last task as if the break never happened.
+
+The messages after this summary are the most recent messages from before compaction, kept verbatim. The summary was written without seeing them, so something it says has not happened yet may already have happened in them.
