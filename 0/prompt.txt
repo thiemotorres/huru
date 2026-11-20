@@ -1,0 +1,1 @@
+<bash-input>code .</bash-input>
