@@ -1,0 +1,1 @@
+<bash-input> adb shell am start -n dev.iptv/.MainActivity</bash-input>
