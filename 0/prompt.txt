@@ -1,0 +1,1 @@
+fails ich habe eine .env angelegt mit den keys XTREAM_URL, XTREAM_USERNAME, XTREAM_PASSWORD, XMLTV_URL
