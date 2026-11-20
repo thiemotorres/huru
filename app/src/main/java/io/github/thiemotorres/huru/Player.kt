@@ -61,7 +61,7 @@ import java.util.Locale
 
 /**
  * Full-screen live player. Up/Down (or CH+/CH−) zaps within the category, Right returns to the previous channel,
- * OK shows info, Back exits.
+ * OK shows info, Back minimizes: the guide is shown on top while the channel keeps playing underneath.
  */
 @Composable
 @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class) // DefaultLoadControl
@@ -74,7 +74,10 @@ fun Player(
     onStartOver: (Channel, Programme) -> Unit,
     reminders: Set<Reminder>,
     onRemind: (Reminder) -> Unit,
-    onExit: (Channel) -> Unit, // the channel being watched
+    onExit: (Channel) -> Unit, // Back: the channel being watched
+    onStop: () -> Unit, // sleep timer ran out
+    minimized: Boolean, // the guide is open on top: no keys, no overlays, dimmed
+    modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
     // Pin the list on start: a background refresh must not switch the channel mid-viewing.
@@ -150,15 +153,16 @@ fun Player(
     val keyboard = LocalSoftwareKeyboardController.current
     LaunchedEffect(Unit) { keyboard?.hide() }
     // Also after the menu: its focus trap cancels a request made while it is still on screen.
-    LaunchedEffect(menu) { if (!menu) runCatching { focus.requestFocus() } }
-    BackHandler { onExit(channels[index]) }
+    LaunchedEffect(menu, minimized) { if (!menu && !minimized) runCatching { focus.requestFocus() } }
+    LaunchedEffect(minimized) { if (!minimized) overlayTick++ }
+    BackHandler(enabled = !minimized) { onExit(channels[index]) }
 
     Box(
-        Modifier
+        modifier
             .fillMaxSize()
             .background(Color.Black)
             .onKeyEvent { e ->
-                if (e.type != KeyEventType.KeyDown || menu) return@onKeyEvent false
+                if (e.type != KeyEventType.KeyDown || menu || minimized) return@onKeyEvent false
                 when (e.key) {
                     Key.Menu -> { menu = true; true }
                     Key.DirectionUp, Key.ChannelUp -> { index = (index - 1 + channels.size) % channels.size; true }
@@ -180,11 +184,12 @@ fun Player(
                 }
             }
             .focusRequester(focus)
-            .focusable(),
+            .focusable(!minimized), // else D-pad moves in the guide could land on it
     ) {
-        VideoSurface(player) { onExit(channels[index]) }
+        VideoSurface(player, onStop)
+        if (minimized) Box(Modifier.fillMaxSize().background(Night.copy(alpha = 0.85f)))
         AnimatedVisibility(
-            visible = overlay || paused || error != null,
+            visible = !minimized && (overlay || paused || error != null),
             enter = fadeIn(), exit = fadeOut(),
             modifier = Modifier.align(Alignment.BottomCenter),
         ) {

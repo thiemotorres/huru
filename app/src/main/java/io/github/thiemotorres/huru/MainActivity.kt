@@ -17,6 +17,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.key.*
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.focus.FocusRequester
@@ -300,6 +301,8 @@ fun BrowseScreen(
     var liveAfter by remember { mutableStateOf<Channel?>(null) } // start-over: go live when the recording runs out
     var backToLive by remember { mutableStateOf(false) } // start-over came from the live player: Back returns there
     var playerKey by remember { mutableIntStateOf(0) } // restarts the player on a channel chosen from outside it
+    var minimized by remember { mutableStateOf(false) } // Back in the player: guide on top, channel keeps playing
+    var watching by remember { mutableStateOf<Int?>(null) } // channel id in the player
     val remindPrefs = context.sourcePrefs("reminders", x.account)
     var reminders by remember {
         val stale = System.currentTimeMillis() - 15 * 60_000
@@ -414,10 +417,17 @@ fun BrowseScreen(
         saveReminders(reminders - r)
         val ch = all.firstOrNull { it.id == r.channelId } ?: return
         if (ch.categoryId in closed) return
-        replay = null; liveAfter = null; backToLive = false; archiveOf = null
+        replay = null; liveAfter = null; backToLive = false; archiveOf = null; minimized = false
         selected = ch.categoryId
         playing = byCategory[ch.categoryId].orEmpty().indexOf(ch).takeIf { it >= 0 } ?: return
         playerKey++
+    }
+
+    // OK on the channel playing underneath goes back to full screen, any other starts it.
+    fun watch(i: Int, ch: Channel) {
+        returnTo = null
+        if (playing != null && minimized && watching == ch.id) minimized = false
+        else { playing = i; playerKey++; minimized = false }
     }
 
     Box(Modifier.fillMaxSize().onPreviewKeyEvent { e ->
@@ -427,6 +437,11 @@ fun BrowseScreen(
             Key.Back -> { if (e.type == KeyEventType.KeyDown) { due = null; saveReminders(reminders - r) }; true }
             else -> false
         }
+    }.onKeyEvent { e ->
+        // Back in the guide over a playing channel stops it; panels and the search field handle their Back first.
+        if (e.key != Key.Back || !minimized || playing == null) return@onKeyEvent false
+        if (e.type == KeyEventType.KeyDown) { playing = null; minimized = false }
+        true
     }) {
         Row(Modifier.fillMaxSize().padding(24.dp), horizontalArrangement = Arrangement.spacedBy(24.dp)) {
             Column(Modifier.width(260.dp)) {
@@ -485,7 +500,7 @@ fun BrowseScreen(
                             start = start,
                             now = now,
                             favorite = ch.id.toString() in favorites,
-                            onClick = { returnTo = null; playing = i },
+                            onClick = { watch(i, ch) },
                             // In "Recently watched" long-press removes the entry instead; focus moves to the next row.
                             onLongClick = {
                                 if (selected != RECENT) toggleFavorite(ch)
@@ -516,7 +531,7 @@ fun BrowseScreen(
         playing?.let { start -> key(playerKey) {
             Player(
                 x, channels, start,
-                onChannel = { lastPrefs.edit().putString("category", selected).putInt("channel", it.id).apply() },
+                onChannel = { watching = it.id; lastPrefs.edit().putString("category", selected).putInt("channel", it.id).apply() },
                 // The player keeps its own copy of the list, so reordering it underneath is safe.
                 onWatched = { ch -> saveRecent((listOf(ch.id) + recent.filter { it != ch.id }).take(10)) },
                 onStartOver = { ch, p ->
@@ -526,9 +541,13 @@ fun BrowseScreen(
                     }
                 },
                 onExit = { ch ->
-                    playing = null
+                    minimized = true
                     returnTo = channelsOf(selected, closed).indexOfFirst { it.id == ch.id }.coerceAtLeast(0)
+                    refocus++
                 },
+                onStop = { playing = null; minimized = false },
+                minimized = minimized,
+                modifier = Modifier.zIndex(if (minimized) -1f else 0f), // under the guide
                 reminders = reminders,
                 onRemind = { saveReminders(if (it in reminders) reminders - it else reminders + it) },
             )
@@ -537,7 +556,7 @@ fun BrowseScreen(
             ArchivePanel(
                 x, ch, active = replay == null,
                 onPlay = { p ->
-                    x.archiveUrl(ch, p)?.let { replay = Playback(it, "${ch.label} · ${p.title}", "archive", ch.logo) }
+                    x.archiveUrl(ch, p)?.let { replay = Playback(it, "${ch.label} · ${p.title}", "archive", ch.logo); playing = null; minimized = false }
                     liveAfter = ch.takeIf { p.end > System.currentTimeMillis() }
                 },
                 onClose = { archiveOf = null; returnTo = channels.indexOf(ch).takeIf { it >= 0 }; refocus++ },
@@ -548,14 +567,14 @@ fun BrowseScreen(
             UpcomingPanel(
                 x, ch, reminders,
                 onRemind = { saveReminders(if (it in reminders) reminders - it else reminders + it) },
-                onPlay = { upcomingOf = null; returnTo = null; playing = channels.indexOf(ch).takeIf { it >= 0 } },
+                onPlay = { upcomingOf = null; channels.indexOf(ch).takeIf { it >= 0 }?.let { watch(it, ch) } },
                 onClose = { upcomingOf = null; returnTo = channels.indexOf(ch).takeIf { it >= 0 }; refocus++ },
                 modifier = Modifier.align(Alignment.CenterEnd),
             )
         }
         fun goLive(ch: Channel?) {
             val i = ch?.let { channels.indexOf(it) } ?: -1
-            if (i >= 0) { archiveOf = null; returnTo = null; playing = i }
+            if (i >= 0) { archiveOf = null; returnTo = null; playing = i; minimized = false }
         }
         replay?.let { p ->
             key(p.url) {
