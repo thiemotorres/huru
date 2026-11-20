@@ -1,0 +1,1 @@
+<bash-input> for n in feto.dev huru-demo.feto.dev grafana.feto.dev argocd.feto.dev; do echo "$n: $(dig +short $n | tr '\n' ' ')"; done</bash-input>
