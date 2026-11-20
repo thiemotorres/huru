@@ -1,0 +1,41 @@
+This session is being continued from a previous conversation that ran out of context. The summary below covers the earlier portion of the conversation.
+
+
+Summary:
+## Kontext / Projekt
+User (spricht Deutsch, Repo-Inhalte auf Englisch) baut **Huru**, eine werbefreie IPTV-App (Xtream Codes) für Amazon Fire TV. Repo lokal: `/Users/feto/dev/private/iptv` (Ordnername blieb „iptv“), GitHub: **https://github.com/thiemotorres/huru** (jetzt **PUBLIC**). Paket-ID: `io.github.thiemotorres.huru`. Lizenz: PolyForm Noncommercial 1.0.0 (`LICENSE.md` mit `Required Notice: Copyright 2026 Thiemo Ferreira Torres (https://github.com/thiemotorres)`); Name/Logo ausgenommen (branding/BRAND.md). Nie „open source“ nennen, sondern „source-available“.
+
+## Wichtige Regeln/Constraints (vom User bzw. vereinbart)
+- **„bitte alles auf englisch, auch festhalten in agents.md“** — Code, Kommentare, Doku, Commits, PRs Englisch; UI über String-Ressourcen (en default `values/strings.xml`, de `values-de/strings.xml`), keine hartcodierten UI-Texte.
+- **Vor adb-Tests/Installationen am Fernseher fragen** — TV wird genutzt (Sohn schaut TV; früher hat Assistant den User aus ARD-alpha geworfen und versehentlich Netflix geöffnet). Screenshots (`adb exec-out screencap -p`) ok. **User hat zuletzt explizit gesagt: „kannst testen“** → Test von Live-Play/Pause auf dem Stick ist jetzt erlaubt.
+- Commits mit GitHub-noreply-Adresse `11440640+thiemotorres@users.noreply.github.com` (lokal in git config gesetzt); niemals Arbeitsadresse (mum.de). Commit-Messages enden mit `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`.
+- Keine Keystores/Passwörter committen; `keystore.properties`, `*.jks`, `*.keystore`, `brag-output*/`, `store/amazon/*.apk`, `.wrangler/`, `node_modules/` sind gitignored.
+- Keine echten Anbieter-Namen/URLs/Credentials/Logos/Inhalte in Repo, Tests, Screenshots (Mock-Daten nutzen).
+- User hat einen Secret-Scan der Historie vor dem Öffentlichschalten abgelehnt (Tool-Use rejected); Repo wurde ohne Scan öffentlich gemacht (Angebot steht, nachzuholen).
+- Deploy des Workers mit Custom Domain wurde vom Classifier blockiert → User deployt DNS-relevante Änderungen selbst (`! cd demo-server && npx wrangler deploy`); Code-only-Redeploys liefen danach durch.
+
+## Umgebung / Tools
+- JDK17: `JAVA_HOME=/opt/homebrew/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home`; Android SDK `/opt/homebrew/share/android-commandlinetools` (build-tools 35.0.0 mit apksigner/aapt2).
+- Build: `./gradlew testDebugUnitTest assembleRelease`; Amazon-Variante `-Pstore=amazon` (BuildConfig.DONATE=false, R8 entfernt kofi_qr). Version via `-PversionName`/`-PversionCode`.
+- Release-Key: `~/.android/huru-release.jks`, referenziert in gitignored `keystore.properties` (HURU_KEYSTORE_FILE/PASSWORD/KEY_ALIAS=huru/KEY_PASSWORD); GitHub-Secrets HURU_KEYSTORE_BASE64, HURU_KEYSTORE_PASSWORD, HURU_KEY_ALIAS, HURU_KEY_PASSWORD. Zertifikat CN=Huru, O=thiemotorres, SHA-256 80c5c562…664b. User soll Key sichern.
+- Fire TV Stick 4K Max (Fire OS 8, AFTKRT), adb `192.168.92.32:5555`. Fokus-Check-Skript: `/private/tmp/claude-501/-Users-feto-dev-private-iptv/18c64000-5932-46f4-8834-4cb9da4c4118/scratchpad/focus.sh` (uiautomator dump → bounds des fokussierten Elements). In zsh Tasten per `function keys { for x in "$@"; do adb shell input keyevent $x; sleep 0.8; done; }`. Fire-Tastatur reagiert unzuverlässig auf adb-DPAD; Text via `adb shell input text`, Play-Taste (`MEDIA_PLAY_PAUSE`) = „Weiter“ in der Tastatur, BACK schließt Tastatur. `rtk`-Hook wrappt grep/ls (bei Problemen `/usr/bin/grep`, `command curl` nutzen).
+- Scratchpad-venv mit fonttools/segno/zxing: `.../scratchpad/logo/venv/bin/python`.
+
+## Architektur (app/src/main/java/io/github/thiemotorres/huru/)
+Xtream.kt (API, Parsing, `loadLists` Cache, `liveExt` ts→m3u8 Fallback, Account(server,user,pass,id,name)), Sources.kt (SourceStore, Migration Altkonto als id "", `Context.sourcePrefs`, DEMO_SOURCE https://huru-demo.feto.dev demo/demo, hostOf, encode/decodeSources), Settings.kt (SettingsScreen, SourceRow, SourceForm inkl. „Try the demo“, ADD_SOURCE Fokus), MainActivity.kt (App mit Modi 0 TV/1 Filme/2 Serien/3 ⚙, key(active), key(mode), ModeSwitch one-shot focus, Field = TV-freundliches Click-to-edit-Feld, BrowseScreen), Guide.kt, Player.kt (Live-Player, HLS-Fallback, newPlayer mit http→https-Redirects, describe(), VideoSurface TextureView, InfoBar mit now/paused), Vod.kt (VodScreen, ProgressStore pro Quelle, SeriesDetail, VodPlayer mit store-Param, auto-next), Splash.kt (SplashFrame, Markenfarben), About.kt (AboutPanel), Text.kt (searchKey, cleanEpisodeTitle). Manifest: `windowSoftInputMode="stateAlwaysHidden"`, Theme.Huru, Banner/Icons. Tests in app/src/test (NamesTest.kt mit Names/Episodes/NullFields/Text/Sources-Tests, Mockups.kt Paparazzi 1920×1080 inkl. player_zap, settings, setup). Tools: tools/mock_assets.py, tools/kofi_qr.py, tools/store_assets.py. Docs: README.md (eingebettetes GitHub-Video via user-attachments, vom User im Web eingefügt), AGENTS.md, CLAUDE.md (@AGENTS.md), CONTRIBUTING.md (Beitragslizenz), PRIVACY.md, .github (FUNDING.yml ko_fi: thiemotorres, PR-Template, workflows ci.yml/release.yml), branding/, docs/screenshots/, store/amazon/ (Grafiken, 6 Screenshots, listing.md mit Console-Anleitung), demo-server/ (Cloudflare Worker `huru-demo` auf **huru-demo.feto.dev**, legal content: Blender-Filme archive.org/blender.org, Live: Unified Streaming live demo, Apple BipBop, Unified Tears of Steel, Mux BBB; `.ts`→404, m3u8→302).
+- OPNsense: Wildcard *.feto.dev durch 8 Einzel-Overrides (argocd, grafana, files, navidrome, nodered, home, router, ttyd → 192.168.92.42) ersetzt; feto.dev & huru-demo öffentlich. Angebot offen: im Homelab-Repo (`/Users/feto/dev/homelab`) dokumentieren, dass neue Dienste einen Override brauchen; www.feto.dev braucht noch CNAME in Cloudflare.
+
+## Releases / Stand
+- v0.1.0 und **v0.2.0** getaggt (CI grün). v0.2.0: Mehrere Quellen, Demo-Setup, Fokus-Fixes, Play/Pause im Live-Player. GitHub-Release-Asset `huru-0.2.0.apk`; Amazon-APK heruntergeladen nach `store/amazon/huru-0.2.0-amazon.apk` (versionCode 3, ohne kofi_qr).
+- Launch-Video fertig in `brag-output/` (brag.mp4, brag.jpg, share-copy.txt, brag-plan.md, work/), User: „nehmen wir“.
+- Letzter Commit vor Tag: „Amazon prep: Play/Pause in the live player, updated store listing and screenshots“.
+
+## Offene Punkte / nächster Schritt
+1. **Jetzt (User erlaubt): Live-Play/Pause auf dem Stick testen** — v0.2.0 Release-APK (lokal `app/build/outputs/apk/release/app-release.apk` ist zuletzt Amazon-Variante gebaut! ggf. normal neu bauen oder `huru-0.2.0.apk` vom Release laden) installieren (`adb install -r`), App starten (startet ggf. mit letztem Live-Sender autoplay), `MEDIA_PLAY_PAUSE` senden → Pause + Info-Leiste mit „❚❚“; nochmals → läuft am Live-Bild weiter; Umschalten während Pause spielt sofort. Danach `adb shell input keyevent HOME`.
+2. Danach User reicht bei Amazon ein (Anleitung `store/amazon/listing.md`).
+3. Offene Kleinigkeiten: Suche & Bearbeiten-Formular nicht per adb getestet; Splash-Animation nur als Standbild geprüft; Secret-Scan-Angebot; Homelab-Doku-Angebot; Overscan-Ränder (48px) evtl. Amazon-Thema.
+
+If you need specific details from before compaction (like exact code snippets, error messages, or content you generated), read the full transcript at: /Users/feto/.claude/projects/-Users-feto-dev-private-iptv/18c64000-5932-46f4-8834-4cb9da4c4118.jsonl
+Continue the conversation from where it left off without asking the user any further questions. Resume directly — do not acknowledge the summary, do not recap what was happening, do not preface with "I'll continue" or similar. Pick up the last task as if the break never happened.
+
+The messages after this summary are the most recent messages from before compaction, kept verbatim. The summary was written without seeing them, so something it says has not happened yet may already have happened in them.
