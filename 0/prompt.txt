@@ -1,0 +1,7 @@
+<pasted_content id="4d1e">
+Was mir aufgefallen ist:
+
+1. schnelles scrollen in den Kategorien lagt
+2. zuletzt gesehen aktualisiert sich nicht 
+3. Einträge lassen sich nicht aus zuletzt gesehen entfernen
+</pasted_content id="4d1e">
