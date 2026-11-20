@@ -1,0 +1,91 @@
+This session is being continued from a previous conversation that ran out of context. The summary below covers the earlier portion of the conversation.
+
+
+Summary:
+## Session summary (Huru – IPTV player for Fire TV, repo `/Users/feto/dev/private/iptv`)
+
+The conversation is in German; the repo is English-only (code, comments, UI strings, docs, commits). UI text is localized in `app/src/main/res/values/strings.xml` and `values-de/strings.xml`.
+
+### Rules (AGENTS.md / CLAUDE.md / user) — keep applying
+- **"Ask before sending key events or installing"** on the Fire TV, because the TV is in daily use. Screenshots (`adb exec-out screencap -p`) are fine. Navigate step by step; avoid blind key sequences. A blind sequence in this session accidentally typed "ja" into the movie search.
+- **"Never commit keystores or passwords."** **"Never put credentials, provider URLs or IPs into the repository."** The settings screen on the device shows the user's real provider URL; never put it anywhere.
+- Huru is a player only: no content sources, provider lists or stream links. Use fictional mock data in tests.
+- Never call the project "open source"; the license is PolyForm Noncommercial (source-available).
+- Commit only when the user asks. They have said "ja" to each commit so far.
+- Commit messages end with `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`.
+- Treat the user's email and personal data as private.
+- After UI changes, re-record mockups with `./gradlew recordPaparazziDebug` and copy changed images used by the README to `docs/screenshots/`. `Mockups_player.png` changes on every record (time-dependent); revert it with `git checkout`.
+- Build:
+  - `export JAVA_HOME=/opt/homebrew/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home`
+  - `./gradlew -q testDebugUnitTest assembleRelease -PversionCode=N`
+  - Last installed versionCode: **50**. Use 51 or higher next.
+  - Install: `adb -s 192.168.92.32:5555 install -r app/build/outputs/apk/release/app-release.apk`
+- Device: Fire TV Stick 4K Max at `192.168.92.32:5555`.
+  - `Log.d` is filtered on Fire OS; use `Log.w` (tag HURU).
+  - `uiautomator` dumps can be stale.
+  - `screenrecord` plus `ffmpeg` (`/opt/homebrew/bin`) tile contact sheets work for checking animations: `ffmpeg -i r.mp4 -vf "fps=10,scale=320:-1,tile=6x8" -frames:v 1 sheet.png`. `drawtext` is not available.
+  - `dumpsys gfxinfo <pkg>` gives frame stats.
+- Shell notes:
+  - `grep` is aliased to `rtk grep`; use `/usr/bin/grep`.
+  - `ls` is aliased; use `/bin/ls`.
+  - zsh globs fail on no match.
+  - Use the scratchpad, not `/tmp`.
+- Scratchpad: `/private/tmp/claude-501/-Users-feto-dev-private-iptv/11f55e6d-2c3c-40c7-ab60-a39b03b42143/scratchpad`. It contains `ui.sh`, which dumps visible UI texts.
+- The devworld `channel_done` tool fails ("Repo außerhalb der devworld-Freigabe"); ignore it.
+- The Obsidian project-tracking question was never answered; do not ask again.
+- Memory: created `/Users/feto/.claude/projects/-Users-feto-dev-private-iptv/memory/backlog.md` (open ideas) with a pointer line in `MEMORY.md`.
+
+### Commits this part of the session (all pushed to main)
+1. **`a6935c2`** Smoother category scrolling; recently watched updates live and entries can be removed. Fixes for three issues the user reported (category scrolling lag, "zuletzt gesehen" not updating, entries not removable):
+   - `MainActivity.kt` `BrowseScreen`:
+     - Debounced category selection: `hovered` state, `LaunchedEffect(hovered){ delay(150); selected = it }`. Category items use `onFocusChanged` to set `hovered`. Pressing Right before the debounce commits `selected = cat.id; returnTo = 0; refocus++`.
+     - `saveRecent(ids)` updates state and prefs. `onWatched` calls `saveRecent` immediately. `onExit` now receives a `Channel`; `returnTo` is found by id.
+     - In RECENT, long-press OK removes the entry. Focus then moves to the next row via `returnTo`/`refocus`; if the list is empty, `selected` = first visible category and `firstCategory` gets focus via `scope.launch`.
+     - Autoplay falls back to the channel's own category when it is no longer in the saved category.
+   - `Player.kt`: `onExit: (Channel) -> Unit`. The watched timer (10 s) is now a separate `LaunchedEffect(channel)`, independent of the EPG load.
+   - README "Built for the remote" line updated.
+2. **`080c556`** Amazon listing category set to "Photo & Video › Video Player" in `store/amazon/listing.md`. Amazon review flagged only the category; the user already resubmitted.
+3. **`c7d3a00`** Player menu (`TrackMenu`): the reminder item is on top and focused first. Verified on device. The reminder banner was verified: it appeared at 10:43 for a 10:45 programme, and OK switched channel. Dismissing with Back was not tested.
+4. **Tag `v0.6.0`** released at https://github.com/thiemotorres/huru/releases/tag/v0.6.0 with `huru-0.6.0.apk`.
+   - Release notes edited: New = M3U, previous channel, reminders, remove from recently watched. Improved = category scrolling, recently watched updates, player focus after menu, reconnect also for movies/series.
+   - The Amazon build exists as a CI artifact; resubmitting it is the user's call.
+5. **`e027804`** Coming programmes of a channel:
+   - Menu key on a channel row in the list opens `UpcomingPanel` (`Guide.kt`), titled "%1$s · Coming up" / "Demnächst" (new string `upcoming_title`).
+   - It calls `x.shortEpg(channel, limit = 20)`. Focus starts on the first non-running programme. OK toggles a reminder (🔔); OK on the running programme plays the channel.
+   - New shared `Modifier.sidePanel(width, onClose)` in `Guide.kt`, used by `TrackMenu`, `ArchivePanel` and `UpcomingPanel`.
+   - MainActivity has `upcomingOf` state; the row's `onPreviewKeyEvent` handles `Key.Menu`.
+   - Fixed a focus bug: the per-item `running` check was wrong; the first index is now computed outside the items. Verified on device.
+   - README Reminders line: "for coming programmes (Menu on a channel or in the player)".
+6. **`76b4e5c`** Skeleton placeholders instead of loading texts:
+   - New file `Skeleton.kt`: `LiveSkeleton(header)`, `GridSkeleton(header)` (same `LazyVerticalGrid` with `GridCells.Adaptive(150.dp)` as the real grid), `ListSkeleton(rows)`.
+   - `ListSkeleton` is used for episodes and both side panels.
+   - Live and VOD loading now show the header and the skeleton; the error case still shows text (and the manage-sources button for live).
+   - Removed strings `loading_channels`, `loading_movies`, `loading_series`, `loading_episodes` (both locales). `R.string.loading` is still used by the VOD player buffering overlay.
+   - `AGENTS.md` architecture table gained a `Skeleton.kt` row. Mockups gained `loading_live` and `loading_movies` (not copied to docs).
+7. **`e2082a5`** Skeleton shimmer; parse off the main thread:
+   - The user said the pulse froze before the list rendered.
+   - The pulse was replaced by a shimmer: a 1100 ms linear sweep, with the band (280 dp) positioned in window coordinates via `onGloballyPositioned`/`positionInWindow`. Base alpha 0.06, band 0.09, drawn in `drawBehind`.
+   - Root cause of the freeze: main-thread work right before the list appears.
+   - VOD: `parseSeries`/`parseMovies` + `groupBy` + `parseCategories` now run in `withContext(Dispatchers.Default)` (`Vod.kt`; imports added).
+   - Live: `groupBy` moved to Default.
+   - Search indexes now use `produceState` + `Dispatchers.Default` (`searchIndex` in MainActivity, `all` in Vod.kt) instead of `remember` during composition.
+   - `searchKey` in `Text.kt` now uses a precompiled `MARKS` regex.
+   - Verified with `screenrecord`: the shimmer animates continuously during roughly 3+ s of series loading.
+
+### State / open threads
+- Device has versionCode 50 installed (matches `e2082a5` content). The Filme search field may still contain "ja" from the accidental typing.
+- Loading series/movies from cache still takes about 3 s on the stick (large JSON parse). A possible future improvement is caching the parsed form.
+- Not tested: reminder banner dismiss via Back; removing the last entry from "Zuletzt gesehen".
+- The CI result for the latest commits has not been checked.
+- Backlog ideas:
+  - AlarmManager reminders that also work outside live TV or with the app closed.
+  - M3U EPG disk cache.
+  - Fire TV "Watch Next" (needs a new dependency).
+  - Global search.
+  - A real full-screen EPG grid (only the "Demnächst" panel was built).
+- Last assistant turn ended after committing `e2082a5`. The user had not yet been sent the final report on the shimmer/freeze fix. Report briefly: the freeze cause (main-thread parse and search-key building), the fixes, that the shimmer was verified on device, and that loading itself still takes about 3 s.
+
+If you need specific details from before compaction (like exact code snippets, error messages, or content you generated), read the full transcript at: /Users/feto/.claude/projects/-Users-feto-dev-private-iptv/11f55e6d-2c3c-40c7-ab60-a39b03b42143.jsonl
+Continue the conversation from where it left off without asking the user any further questions. Resume directly — do not acknowledge the summary, do not recap what was happening, do not preface with "I'll continue" or similar. Pick up the last task as if the break never happened.
+
+The messages after this summary are the most recent messages from before compaction, kept verbatim. The summary was written without seeing them, so something it says has not happened yet may already have happened in them.
