@@ -1,0 +1,3 @@
+ja mach bitte 1 und 2, mock screenshots brauche ich auch für den brag skill. mein sohn schaut grad TV also ist der tv nicht frei :D
+
+ein paar dinge noch: ci/cd - kofi link auf github (ggf. auch als qr in die app) - contributing rules (auch in agents.md) - amazon app store
