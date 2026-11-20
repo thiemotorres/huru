@@ -1,0 +1,1 @@
+ich hab noch die feto.dev domain die am besten passt. aber da muss ich erst in opnsense dafür sorgen, huru-demo nicht intern geroutet werden
