@@ -1,0 +1,21 @@
+<bash-stdout> ⛅️ wrangler 4.160.1
+────────────────────
+🌀 Building list of assets...
+✨ Read 7 files from the assets directory /Users/feto/dev/private/iptv/demo-server/public
+🌀 Starting asset upload...
+No updated asset files to upload. Proceeding with deployment...
+Total Upload: 8.30 KiB / gzip: 3.00 KiB
+Uploaded huru-demo (7.48 sec)
+[33m▲ [43;33m[[43;30mWARNING[43;33m][0m [1mBecause 'workers_dev' is not in your wrangler.toml, it will be disabled for this deployment by default.[0m
+
+  To override this setting, you can enable workers.dev by explicitly setting 'workers_dev = true' in your wrangler.toml.
+
+
+[33m▲ [43;33m[[43;30mWARNING[43;33m][0m [1mBecause your 'workers.dev' route is disabled and your 'preview_urls' setting is not in your wrangler.toml, Preview URLs will be disabled for this deployment by default.[0m
+
+  To override this setting, you can enable Preview URLs by explicitly setting 'preview_urls = true' in your wrangler.toml.
+
+
+Deployed huru-demo triggers (4.77 sec)
+  huru-demo.feto.dev (custom domain)
+Current Version ID: 97619a50-d7e8-4e6a-afc6-cb1736630919</bash-stdout><bash-stderr></bash-stderr>
